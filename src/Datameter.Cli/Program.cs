@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using Datameter.Core;
 
-// Headless harness for the data layer. Acceptance test: the 30-day total must land on the
-// figure measured directly against the Windows API (167.61 GB on 1 Sep 2026).
+// Headless harness for the data layer: syncs, then prints the same totals the app shows.
+// Use it to check figures against the Windows Settings page without involving the UI, and
+// --networks to list stored networks and flag any duplicate names.
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 

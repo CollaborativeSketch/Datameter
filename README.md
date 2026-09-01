@@ -2,84 +2,88 @@
 
 # Datameter
 
-A Windows app that totals your data usage across **every** network, over any period you pick.
+A Windows app that totals your data usage across every network, over any period you pick.
 
 [![Download](https://img.shields.io/badge/Download-latest%20release-4CC2FF?style=for-the-badge)](https://github.com/CollaborativeSketch/Datameter/releases/latest)
 [![License](https://img.shields.io/badge/licence-MIT-5CD6A9?style=for-the-badge)](LICENSE)
 
 <br clear="left">
 
-
-Windows already records this. It just won't add it up: the Settings → Data usage page shows one
-adapter at a time and offers no way to combine them. On the machine this was built for, Settings
-reported 96.87 GB for the last 30 days while the true figure across all networks was **167.61 GB** —
-42% of the traffic never appeared on that screen.
+Windows records per-network usage but does not combine it. The Settings → Data usage page shows
+one adapter at a time, so a machine that moves between Wi-Fi, a mobile hotspot and Ethernet has no
+single figure for what it actually used. Datameter adds them up.
 
 ## Install
 
 | Your PC | Download |
 | --- | --- |
-| **Most Windows PCs** (Intel / AMD 64-bit) | **[Download for x64](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-x64.exe)** |
+| Most Windows PCs (Intel / AMD 64-bit) | [Download for x64](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-x64.exe) |
 | ARM64 (Surface Pro X, Snapdragon laptops) | [Download for ARM64](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-arm64.exe) |
 | 32-bit Windows | [Download for x86](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-x86.exe) |
 
-Not sure? Pick **x64** — it is right for almost every PC.
+If you are unsure, choose x64. It is correct for almost every PC.
 
-Separate builds rather than one universal installer, so a download is around 60 MB instead of
-160 MB — which seemed like the right call for an app about not wasting data.
+There is one installer per architecture rather than a single universal one, which keeps each
+download to roughly 40 to 60 MB.
 
-It installs per-user, so there is **no admin prompt**. Each build is self-contained: the target
-machine needs neither .NET nor the Windows App Runtime. The installer is unsigned, so Windows
-SmartScreen will show "Windows protected your PC" the first time — choose **More info → Run
-anyway**.
+Installation is per-user and does not prompt for administrator rights. Each build is
+self-contained, so the target machine does not need .NET or the Windows App Runtime installed. The
+installers are unsigned, so Windows SmartScreen will warn on first run; choose **More info** then
+**Run anyway**.
 
 ### Requirements
 
-**Windows 10 version 1809 (build 17763) or later, and Windows 11.** That floor is not a choice:
-`GetNetworkUsageAsync`, the API this app is built on, does not exist before it, and neither the
-Windows App SDK nor .NET 9 will run there. **Windows 7 and 8.1 are not supported and cannot be** —
-it would need both a different UI framework and an entirely different source for the usage data.
+Windows 10 version 1809 (build 17763) or later, including Windows 11.
 
-## What it does
+`GetNetworkUsageAsync`, the API Datameter is built on, does not exist in earlier versions, and
+neither the Windows App SDK nor .NET 9 supports them. Windows 7 and 8.1 cannot be supported
+without both a different UI framework and a different source of usage data.
 
-- **One honest total** for 24 hours, 7 days, 30 days, this month, last month, 12 months, or a
-  custom date range — with today and yesterday resolved against your local midnight, not UTC's.
-- **A contribution bar** showing what each network is responsible for, with tiles below it.
-- **Click any network** to narrow to it; select several to combine them.
-- **Per-app breakdown**, the same view Settings gives, but summed across all networks rather than
-  one adapter.
-- **Light / dark / system** theme, remembered between runs.
+## Features
 
-## Why it keeps its own database
+- Totals for the last 24 hours, 7 days or 30 days, for today, yesterday, this month or last month,
+  for the last 12 months, or for a date range you choose. Calendar periods resolve against local
+  midnight rather than UTC.
+- A proportional bar showing each network's share, with a tile per network beneath it.
+- Selecting a network narrows every figure to it. Selecting several combines them.
+- A per-application breakdown, equivalent to the one in Settings but summed across all networks
+  instead of a single adapter.
+- Light, dark, or follow-system appearance, remembered between runs.
 
-Windows retains roughly 30 days of usage history and discards the rest. Datameter caches what it
-reads into a local SQLite database that only ever appends, so it accumulates history well past what
-Windows itself can answer for — and a network's figures survive you forgetting that Wi-Fi.
+## Local database
 
-It can also **import history from the "Data usage" Store app** by 31229smartApps, if you have it.
-That app keeps about a year of hourly records, including networks whose Wi-Fi profiles have since
-been deleted and which the Windows API can no longer report at all. Imported hours never overwrite
-hours read from Windows.
+Windows retains roughly 30 days of usage history. Datameter caches what it reads into a local
+SQLite database that only appends, so its history extends past what Windows can still report, and
+a network's figures remain after its Wi-Fi profile is deleted.
 
-## How it reads usage
+It can also import history from the "Data usage" Store app by 31229smartApps if that is installed.
+That app stores about a year of hourly records, including networks the Windows API can no longer
+report. Imported hours never overwrite hours read from Windows.
 
-`Windows.Networking.Connectivity.ConnectionProfile.GetNetworkUsageAsync` — the same source the
-Settings page uses. No elevation, no special capability, no driver.
+## How usage is read
 
-Three measured constraints shape the design:
+`Windows.Networking.Connectivity.ConnectionProfile.GetNetworkUsageAsync`, the same source the
+Settings page uses. It requires no elevation and no special capability.
 
-| Constraint | Measured | Consequence |
+Three measured properties of that API shape the design:
+
+| Property | Measured | Consequence |
 | --- | --- | --- |
-| Query latency | ~3.1 s per network for a 30-day span | Everything is cached; only the delta is re-read |
-| Cost vs. granularity | Hourly costs the same as a bare total | Always fetch hourly, roll up locally |
-| Maximum span | ~58 days | Longer requests throw, or silently return zero — so they are clamped |
+| Query latency | About 3.1 s per network for a 30-day span | Results are cached; only the delta is re-read |
+| Cost against granularity | Hourly costs the same as a bare total | Always fetch hourly and roll up locally |
+| Maximum span | About 58 days | Longer requests throw or return zero, so they are clamped |
 
-Per-app figures can't be cached this way: that API returns totals for a range with no per-hour
-attribution, so each period is a live query and nothing accumulates beyond Windows' own retention.
+Per-application figures cannot be cached the same way. That API returns totals for a range with no
+per-hour attribution, so each period is a live query and nothing accumulates beyond the retention
+Windows itself provides.
+
+Networks are identified by profile name. `ConnectionProfile.NetworkAdapter` throws for a profile
+that is not currently available, so an adapter identifier is only known while that network is in
+range and cannot be part of a stable identity.
 
 ## Building
 
-Requires the **.NET 9 SDK**. No Visual Studio needed — the XAML compiler ships in the Windows App
+Requires the .NET 9 SDK. Visual Studio is not needed; the XAML compiler ships in the Windows App
 SDK NuGet package.
 
 ```
@@ -88,42 +92,52 @@ dotnet build src/Datameter.App/Datameter.App.csproj
 
 ### Installers
 
-Needs [Inno Setup 6](https://jrsoftware.org/isinfo.php) — `winget install JRSoftware.InnoSetup`.
+Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php), available via
+`winget install JRSoftware.InnoSetup`.
 
 ```
 powershell -File installer\build.ps1
 ```
 
-Publishes for x64, ARM64 and x86 and builds one installer each into `dist\`. The script fails
-loudly if the compiled XAML is missing from a publish, because `dotnet publish` drops it for
-unpackaged WinUI 3 apps and the result installs happily and then dies on launch.
+This publishes for x64, ARM64 and x86 and builds one installer each into `dist\`. It fails if a
+publish is missing its compiled XAML, because `dotnet publish` omits those files for unpackaged
+WinUI 3 applications and the resulting installer produces an app that cannot start.
+
+### Diagnostics
+
+`Datameter.Cli` runs the data layer without the UI and prints the same totals.
+
+```
+dotnet run --project src/Datameter.Cli            # sync and report
+dotnet run --project src/Datameter.Cli -- --networks   # list stored networks
+```
 
 ## Layout
 
-| Path | What it holds |
+| Path | Contents |
 | --- | --- |
-| `src/Datameter.Core` | Usage provider, SQLite cache, sync, archive importer — no UI |
-| `src/Datameter.App` | WinUI 3 app |
-| `src/Datameter.Cli` | Headless harness that prints the same totals, for verifying the data layer |
+| `src/Datameter.Core` | Usage provider, SQLite cache, sync, archive importer. No UI. |
+| `src/Datameter.App` | WinUI 3 application |
+| `src/Datameter.Cli` | Headless harness for verifying the data layer |
 | `installer/` | Inno Setup script and the multi-architecture build script |
-| `assets/` | Logo generator — the `.ico` and PNG are produced from `generate-icon.ps1` |
+| `assets/` | Logo generator; the icon and PNG are produced by `generate-icon.ps1` |
 
 ## Disclaimer
 
-Datameter is **free software**. It costs nothing, it is not sold, and it comes with **no warranty
-of any kind**.
+Datameter is free software. It costs nothing and comes with no warranty of any kind.
 
-**You install and use it at your own risk.** Alexander Akinbiyi accepts no liability for any loss
-or damage of any kind arising from installing or using this software — including damage to your
-device, your data, your network, or any consequence of relying on the figures it reports.
+You install and use it at your own risk. Alexander Akinbiyi accepts no liability for any loss or
+damage of any kind arising from installing or using this software, including damage to your
+device, your data or your network, or any consequence of relying on the figures it reports.
 
-Datameter reads the usage statistics Windows already records for your account. **It sends nothing
-anywhere**: everything it reads is stored in a database on your own machine, and nothing leaves it.
+Datameter reads the usage statistics Windows already records for your account. It sends nothing
+anywhere. Everything it reads is stored in a database on your own machine.
 
-The installer shows this disclaimer and asks you to accept it before anything is written to disk.
+The installer presents this disclaimer and requires you to accept it before anything is written to
+disk.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
-Built by **Alexander Akinbiyi** ([@CollaborativeSketch](https://github.com/CollaborativeSketch)).
+Built by Alexander Akinbiyi ([@CollaborativeSketch](https://github.com/CollaborativeSketch)).

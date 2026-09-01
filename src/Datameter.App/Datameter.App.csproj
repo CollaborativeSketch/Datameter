@@ -62,6 +62,26 @@
     omits them. The app then builds and installs fine and dies on launch with
     "XAML parsing failed", because there is no parsed XAML to load. Put them back.
   -->
+  <!--
+    The Windows App SDK ships the Windows AI runtime — onnxruntime and DirectML — with every
+    x64 and ARM64 build. Datameter calls none of it: it reads byte counters and draws a bar.
+    Those two libraries alone are 38 MB of the 129 MB payload.
+
+    The x86 build has never included them and runs correctly, which is why it packages to
+    41.8 MB against x64's 58.8 MB. Dropping them brings the other architectures into line.
+  -->
+  <Target Name="TrimUnusedAiRuntime" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_UnusedAiRuntime Include="@(ResolvedFileToPublish)"
+                        Condition="'%(Filename)' == 'onnxruntime'
+                                or '%(Filename)' == 'DirectML'
+                                or '%(Filename)' == 'onnxruntime_providers_shared'
+                                or '%(Filename)' == 'Microsoft.ML.OnnxRuntime'" />
+      <ResolvedFileToPublish Remove="@(_UnusedAiRuntime)" />
+    </ItemGroup>
+    <Message Importance="high" Text="Trimmed @(_UnusedAiRuntime->Count()) unused Windows AI runtime file(s) from the publish output." />
+  </Target>
+
   <Target Name="PublishXamlAssets" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>
       <_DatameterXamlAsset Include="$(OutputPath)**\*.xbf" />

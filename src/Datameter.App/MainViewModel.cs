@@ -337,9 +337,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Networks.Clear();
         var max = active.Count > 0 ? active[0].Total : 1;
 
-        // The bar shows only what the headline figure covers, so a selection fills the width
-        // instead of leaving the rest greyed out — the proportions you are comparing are the
-        // ones you asked for.
+        // The bar covers exactly what the headline figure covers, so a selection fills the width
+        // rather than leaving unselected networks drawn but dimmed.
         foreach (var n in counted)
         {
             var share = total > 0 ? 100d * n.Total / total : 0;
