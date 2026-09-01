@@ -21,6 +21,15 @@ if (-not $Iscc) { throw "Inno Setup 6 not found. Install it with: winget install
 
 if (-not (Test-Path $Dist)) { New-Item -ItemType Directory -Path $Dist | Out-Null }
 
+# The installer's licence page is the disclaimer followed by the MIT licence. Generating it
+# keeps DISCLAIMER.txt and LICENSE as the only sources — an edit to either lands here.
+$disclaimer = Get-Content (Join-Path $Root 'installer\DISCLAIMER.txt') -Raw
+$licence = Get-Content (Join-Path $Root 'LICENSE') -Raw
+$rule = '-' * 70
+$combined = "$disclaimer`r`n$rule`r`n`r`n$licence"
+Set-Content -Path (Join-Path $Root 'installer\LICENSE-AND-DISCLAIMER.generated.txt') -Value $combined -Encoding UTF8
+Write-Host "generated installer\LICENSE-AND-DISCLAIMER.generated.txt" -ForegroundColor DarkGray
+
 # x86 last: it is the fallback build, and listing it last keeps the summary readable.
 $targets = @(
     @{ Rid = 'win-x64';   Arch = 'x64' },

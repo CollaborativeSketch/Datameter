@@ -24,3 +24,6 @@ dist/
 *.db-shm
 settings.json
 error.log
+
+# Generated at build time from installer/DISCLAIMER.txt + LICENSE
+installer/LICENSE-AND-DISCLAIMER.generated.txt
