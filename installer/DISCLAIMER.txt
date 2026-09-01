@@ -1,0 +1,18 @@
+DATAMETER IS FREE SOFTWARE, PROVIDED WITH NO WARRANTY OF ANY KIND.
+
+YOU INSTALL AND USE IT AT YOUR OWN RISK.
+
+Alexander Akinbiyi accepts no liability for any loss or damage of any kind
+arising from installing or using this software - including damage to your
+device, your data, or your network, or any consequence of relying on the
+figures it reports.
+
+This installer is not code-signed, so Windows SmartScreen may warn about it.
+
+WHAT IT DOES WITH YOUR DATA
+
+Datameter reads the network usage statistics Windows already records for your
+account. It sends nothing anywhere. Everything it reads is stored in a database
+on this machine, and nothing leaves it.
+
+The full MIT licence follows on the next page.

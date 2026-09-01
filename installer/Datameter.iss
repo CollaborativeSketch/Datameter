@@ -37,6 +37,12 @@ VersionInfoCompany={#AppPublisher}
 VersionInfoCopyright=Copyright (C) 2026 {#AppPublisher}
 SetupIconFile=..\assets\datameter.ico
 
+; Two separate pages on purpose. The disclaimer gets its own, short enough to read without
+; scrolling — buried at the top of a long licence it is the part nobody scrolls back up to see.
+; The MIT licence then carries the accept/decline gate.
+InfoBeforeFile=DISCLAIMER.txt
+LicenseFile=..\LICENSE
+
 ; Per-user install by default, so no UAC prompt and no admin rights needed. A user with
 ; admin rights can still choose an all-users install from the first page.
 PrivilegesRequired=lowest
@@ -60,7 +66,11 @@ MinVersion=10.0.17763
 #endif
 
 OutputDir={#DistDir}
-OutputBaseFilename=DatameterSetup-{#AppVersion}-{#Arch}
+; No version in the filename, deliberately. GitHub serves
+; releases/latest/download/<asset-name>, so a constant name gives permanent download links
+; that never need updating when a new version ships. The version is in the installer's own
+; metadata, its title bar, and Add/Remove Programs.
+OutputBaseFilename=DatameterSetup-{#Arch}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

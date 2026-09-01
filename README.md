@@ -17,14 +17,13 @@ reported 96.87 GB for the last 30 days while the true figure across all networks
 
 ## Install
 
-Grab the installer for your architecture from the
-[latest release](https://github.com/CollaborativeSketch/Datameter/releases/latest):
-
 | Your PC | Download |
 | --- | --- |
-| Most Windows PCs (Intel / AMD 64-bit) | `DatameterSetup-1.0.0-x64.exe` |
-| ARM64 (Surface Pro X, Snapdragon laptops) | `DatameterSetup-1.0.0-arm64.exe` |
-| 32-bit Windows | `DatameterSetup-1.0.0-x86.exe` |
+| **Most Windows PCs** (Intel / AMD 64-bit) | **[Download for x64](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-x64.exe)** |
+| ARM64 (Surface Pro X, Snapdragon laptops) | [Download for ARM64](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-arm64.exe) |
+| 32-bit Windows | [Download for x86](https://github.com/CollaborativeSketch/Datameter/releases/latest/download/DatameterSetup-x86.exe) |
+
+Not sure? Pick **x64** — it is right for almost every PC.
 
 Separate builds rather than one universal installer, so a download is around 60 MB instead of
 160 MB — which seemed like the right call for an app about not wasting data.
@@ -108,6 +107,20 @@ unpackaged WinUI 3 apps and the result installs happily and then dies on launch.
 | `src/Datameter.Cli` | Headless harness that prints the same totals, for verifying the data layer |
 | `installer/` | Inno Setup script and the multi-architecture build script |
 | `assets/` | Logo generator — the `.ico` and PNG are produced from `generate-icon.ps1` |
+
+## Disclaimer
+
+Datameter is **free software**. It costs nothing, it is not sold, and it comes with **no warranty
+of any kind**.
+
+**You install and use it at your own risk.** Alexander Akinbiyi accepts no liability for any loss
+or damage of any kind arising from installing or using this software — including damage to your
+device, your data, your network, or any consequence of relying on the figures it reports.
+
+Datameter reads the usage statistics Windows already records for your account. **It sends nothing
+anywhere**: everything it reads is stored in a database on your own machine, and nothing leaves it.
+
+The installer shows this disclaimer and asks you to accept it before anything is written to disk.
 
 ## Licence
 
