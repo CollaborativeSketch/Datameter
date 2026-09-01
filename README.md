@@ -2,7 +2,10 @@
 
 # Datameter
 
-A Windows 11 app that totals your data usage across **every** network, over any period you pick.
+A Windows app that totals your data usage across **every** network, over any period you pick.
+
+[![Download](https://img.shields.io/badge/Download-latest%20release-4CC2FF?style=for-the-badge)](https://github.com/CollaborativeSketch/Datameter/releases/latest)
+[![License](https://img.shields.io/badge/licence-MIT-5CD6A9?style=for-the-badge)](LICENSE)
 
 <br clear="left">
 
@@ -11,6 +14,32 @@ Windows already records this. It just won't add it up: the Settings → Data usa
 adapter at a time and offers no way to combine them. On the machine this was built for, Settings
 reported 96.87 GB for the last 30 days while the true figure across all networks was **167.61 GB** —
 42% of the traffic never appeared on that screen.
+
+## Install
+
+Grab the installer for your architecture from the
+[latest release](https://github.com/CollaborativeSketch/Datameter/releases/latest):
+
+| Your PC | Download |
+| --- | --- |
+| Most Windows PCs (Intel / AMD 64-bit) | `DatameterSetup-1.0.0-x64.exe` |
+| ARM64 (Surface Pro X, Snapdragon laptops) | `DatameterSetup-1.0.0-arm64.exe` |
+| 32-bit Windows | `DatameterSetup-1.0.0-x86.exe` |
+
+Separate builds rather than one universal installer, so a download is around 60 MB instead of
+160 MB — which seemed like the right call for an app about not wasting data.
+
+It installs per-user, so there is **no admin prompt**. Each build is self-contained: the target
+machine needs neither .NET nor the Windows App Runtime. The installer is unsigned, so Windows
+SmartScreen will show "Windows protected your PC" the first time — choose **More info → Run
+anyway**.
+
+### Requirements
+
+**Windows 10 version 1809 (build 17763) or later, and Windows 11.** That floor is not a choice:
+`GetNetworkUsageAsync`, the API this app is built on, does not exist before it, and neither the
+Windows App SDK nor .NET 9 will run there. **Windows 7 and 8.1 are not supported and cannot be** —
+it would need both a different UI framework and an entirely different source for the usage data.
 
 ## What it does
 
@@ -58,15 +87,17 @@ SDK NuGet package.
 dotnet build src/Datameter.App/Datameter.App.csproj
 ```
 
-### Installer
+### Installers
+
+Needs [Inno Setup 6](https://jrsoftware.org/isinfo.php) — `winget install JRSoftware.InnoSetup`.
 
 ```
-dotnet publish src/Datameter.App/Datameter.App.csproj -c Release -r win-x64
-iscc /DPublishDir="<full path to the publish folder>" installer\Datameter.iss
+powershell -File installer\build.ps1
 ```
 
-Produces a per-user installer that needs no admin rights. The app is published self-contained, so
-the target machine needs neither .NET nor the Windows App Runtime installed.
+Publishes for x64, ARM64 and x86 and builds one installer each into `dist\`. The script fails
+loudly if the compiled XAML is missing from a publish, because `dotnet publish` drops it for
+unpackaged WinUI 3 apps and the result installs happily and then dies on launch.
 
 ## Layout
 
@@ -75,7 +106,8 @@ the target machine needs neither .NET nor the Windows App Runtime installed.
 | `src/Datameter.Core` | Usage provider, SQLite cache, sync, archive importer — no UI |
 | `src/Datameter.App` | WinUI 3 app |
 | `src/Datameter.Cli` | Headless harness that prints the same totals, for verifying the data layer |
-| `installer/` | Inno Setup script |
+| `installer/` | Inno Setup script and the multi-architecture build script |
+| `assets/` | Logo generator — the `.ico` and PNG are produced from `generate-icon.ps1` |
 
 ## Licence
 

@@ -1,12 +1,11 @@
 ; Inno Setup script for Datameter.
 ;
-; Build with:
-;   dotnet publish src/Datameter.App/Datameter.App.csproj -c Release -r win-x64
-;   iscc /DPublishDir="<full path to the publish folder>" installer\Datameter.iss
+; One installer is produced per architecture, so a download is ~60 MB rather than ~160 MB —
+; which matters for an app whose whole subject is how much data you are getting through.
 ;
-; The app is published self-contained — it carries .NET and the Windows App SDK — so this
-; installs without any prerequisite download and without needing the Windows App Runtime
-; present on the target machine.
+; Build (see installer\build.ps1, which does all three):
+;   dotnet publish src\Datameter.App\Datameter.App.csproj -c Release -r win-x64
+;   iscc /DArch=x64 /DPublishDir="<full path to that publish folder>" installer\Datameter.iss
 
 #define AppName        "Datameter"
 #define AppVersion     "1.0.0"
@@ -16,6 +15,12 @@
 
 #ifndef PublishDir
   #error PublishDir is not defined. Pass /DPublishDir="...\publish" to iscc.
+#endif
+#ifndef Arch
+  #error Arch is not defined. Pass /DArch=x64, x86 or arm64 to iscc.
+#endif
+#ifndef DistDir
+  #error DistDir is not defined. Pass /DDistDir="...\dist" to iscc.
 #endif
 
 [Setup]
@@ -28,6 +33,8 @@ AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
 VersionInfoVersion={#AppVersion}
+VersionInfoCompany={#AppPublisher}
+VersionInfoCopyright=Copyright (C) 2026 {#AppPublisher}
 SetupIconFile=..\assets\datameter.ico
 
 ; Per-user install by default, so no UAC prompt and no admin rights needed. A user with
@@ -38,13 +45,22 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 
-; Datameter only reads usage the current user can already see, so it never needs elevation.
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+; Windows App SDK and .NET 9 both require Windows 10 1809 (build 17763) or later; the usage
+; API this app is built on does not exist before it either.
 MinVersion=10.0.17763
 
-OutputDir={#PublishDir}\..\installer
-OutputBaseFilename=DatameterSetup-{#AppVersion}
+#if Arch == "x64"
+  ArchitecturesAllowed=x64compatible and not arm64
+  ArchitecturesInstallIn64BitMode=x64compatible
+#elif Arch == "arm64"
+  ArchitecturesAllowed=arm64
+  ArchitecturesInstallIn64BitMode=arm64
+#else
+  ; The x86 build runs everywhere, including under emulation on x64 and ARM64.
+#endif
+
+OutputDir={#DistDir}
+OutputBaseFilename=DatameterSetup-{#AppVersion}-{#Arch}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

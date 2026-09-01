@@ -8,8 +8,20 @@
     <RootNamespace>Datameter.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\datameter.ico</ApplicationIcon>
-    <Platforms>x64</Platforms>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-x86;win-arm64</RuntimeIdentifiers>
+    <!-- Plain `dotnet build` needs a RID; publishing passes -r to override this. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+
+    <!-- Shown in the file's Details tab and in Add/Remove Programs. -->
+    <Product>Datameter</Product>
+    <Company>Alexander Akinbiyi</Company>
+    <Authors>Alexander Akinbiyi</Authors>
+    <Copyright>Copyright © 2026 Alexander Akinbiyi</Copyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    <RepositoryUrl>https://github.com/CollaborativeSketch/Datameter</RepositoryUrl>
     <UseWinUI>true</UseWinUI>
     <!--
       Unpackaged and self-contained. The machine has the Windows App Runtime *framework*

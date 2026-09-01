@@ -7,6 +7,7 @@ publish/
 
 # Installer output
 installer/Output/
+dist/
 *.exe
 !installer/**/*.iss
 
