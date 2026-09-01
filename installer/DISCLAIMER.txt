@@ -15,4 +15,4 @@ Datameter reads the network usage statistics Windows already records for your
 account. It sends nothing anywhere. Everything it reads is stored in a database
 on this machine, and nothing leaves it.
 
-The full MIT licence follows on the next page.
+The full MIT licence follows below.
