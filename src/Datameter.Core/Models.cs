@@ -8,7 +8,10 @@ public enum NetworkKind
     Other = 3
 }
 
-/// <summary>A network we have recorded usage for. Identity is (ProfileName, AdapterId).</summary>
+/// <summary>
+/// A network with recorded usage. Identity is ProfileName; AdapterId is informational and is
+/// only known while the network is available.
+/// </summary>
 public sealed record NetworkRecord(
     long Id,
     string ProfileName,

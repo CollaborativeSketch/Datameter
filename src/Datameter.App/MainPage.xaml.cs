@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Shapes;
+using System.Reflection;
 
 namespace Datameter.App;
 
@@ -34,6 +35,22 @@ public sealed partial class MainPage : UserControl
 
     public MainViewModel ViewModel { get; }
 
+    /// <summary>
+    /// Read from the assembly rather than written into the XAML, so the About block cannot
+    /// drift out of step with what was actually built.
+    /// </summary>
+    private static string AppVersion
+    {
+        get
+        {
+            var attribute = (AssemblyInformationalVersionAttribute?)Attribute.GetCustomAttribute(
+                Assembly.GetExecutingAssembly(), typeof(AssemblyInformationalVersionAttribute));
+
+            // Strip any "+<commit sha>" suffix the SDK appends.
+            return attribute?.InformationalVersion.Split('+')[0] ?? "";
+        }
+    }
+
     public MainPage()
     {
         InitializeComponent();
@@ -58,6 +75,7 @@ public sealed partial class MainPage : UserControl
         };
 
         _preferences = SettingsService.Load();
+        VersionText.Text = $"Version {AppVersion}";
 
         PageRoot.SizeChanged += (_, _) =>
         {
@@ -477,9 +495,9 @@ public sealed partial class MainPage : UserControl
             {
                 Background = Palette.Network(theme, segment.ColorIndex),
                 CornerRadius = new CornerRadius(first ? 4 : 2, last ? 4 : 2, last ? 4 : 2, first ? 4 : 2),
-                Margin = new Thickness(first ? 0 : 1.5, 0, last ? 0 : 1.5, 0),
-                // Dim the others when one network is being examined.
-                Opacity = !ViewModel.IsFiltered || ViewModel.SelectedNetworkNames.Contains(segment.Name) ? 1.0 : 0.3
+                Margin = new Thickness(first ? 0 : 1.5, 0, last ? 0 : 1.5, 0)
+                // No dimming: the view model only supplies the segments the total covers, so a
+                // selection already fills the bar.
             };
 
             ToolTipService.SetToolTip(slice, $"{segment.Name} · {segment.ValueText} · {segment.PercentText}");

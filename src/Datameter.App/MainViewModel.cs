@@ -337,12 +337,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Networks.Clear();
         var max = active.Count > 0 ? active[0].Total : 1;
 
+        // The bar covers exactly what the headline figure covers, so a selection fills the width
+        // rather than leaving unselected networks drawn but dimmed.
+        foreach (var n in counted)
+        {
+            var share = total > 0 ? 100d * n.Total / total : 0;
+            Segments.Add(new SegmentVm(
+                n.ProfileName, n.ColorIndex, Math.Max(share, 0.35),
+                ByteFormat.Humanize(n.Total), $"{share:N1}%"));
+        }
+
+        // Tiles always show a network's share of everything, so the numbers you pick from stay
+        // put rather than rewriting themselves each time the selection changes.
         foreach (var n in active)
         {
             var pct = grandTotal > 0 ? 100d * n.Total / grandTotal : 0;
-            Segments.Add(new SegmentVm(
-                n.ProfileName, n.ColorIndex, Math.Max(pct, 0.35),
-                ByteFormat.Humanize(n.Total), $"{pct:N1}%"));
             Networks.Add(new NetworkVm(
                 n.NetworkId, n.ProfileName, n.ColorIndex, ByteFormat.Humanize(n.Total), $"{pct:N1}%",
                 Math.Max(2d, 100d * n.Total / max), n.Kind, n.IsMetered,

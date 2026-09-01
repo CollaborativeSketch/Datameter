@@ -8,7 +8,7 @@
 ;   iscc /DArch=x64 /DPublishDir="<full path to that publish folder>" installer\Datameter.iss
 
 #define AppName        "Datameter"
-#define AppVersion     "1.0.0"
+#define AppVersion     "1.0.1"
 #define AppPublisher   "Alexander Akinbiyi"
 #define AppUrl         "https://github.com/CollaborativeSketch/Datameter"
 #define AppExeName     "Datameter.exe"

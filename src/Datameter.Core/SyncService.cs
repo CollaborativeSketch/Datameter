@@ -43,7 +43,7 @@ public sealed class SyncService
             if (productive.Count > 0)
             {
                 handles = handles
-                    .Where(h => productive.Contains(UsageStore.MakeKey(h.ProfileName, h.AdapterId)))
+                    .Where(h => productive.Contains(h.ProfileName))
                     .ToList();
             }
         }

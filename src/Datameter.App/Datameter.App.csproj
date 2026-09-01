@@ -18,9 +18,9 @@
     <Company>Alexander Akinbiyi</Company>
     <Authors>Alexander Akinbiyi</Authors>
     <Copyright>Copyright © 2026 Alexander Akinbiyi</Copyright>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
+    <Version>1.0.1</Version>
     <RepositoryUrl>https://github.com/CollaborativeSketch/Datameter</RepositoryUrl>
     <UseWinUI>true</UseWinUI>
     <!--
@@ -57,10 +57,30 @@
   </ItemGroup>
 
   <!--
+    The Windows App SDK ships the Windows AI runtime (onnxruntime and DirectML) with every
+    x64 and ARM64 build. Datameter calls none of it: it reads byte counters and draws a bar.
+    Those two libraries alone were 38 MB of a 129 MB payload.
+
+    The x86 build has never included them and runs correctly, which is why it packaged to
+    41.8 MB against x64's 58.8 MB. Dropping them brings the other architectures into line.
+  -->
+  <Target Name="TrimUnusedAiRuntime" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_UnusedAiRuntime Include="@(ResolvedFileToPublish)"
+                        Condition="'%(Filename)' == 'onnxruntime'
+                                or '%(Filename)' == 'DirectML'
+                                or '%(Filename)' == 'onnxruntime_providers_shared'
+                                or '%(Filename)' == 'Microsoft.ML.OnnxRuntime'" />
+      <ResolvedFileToPublish Remove="@(_UnusedAiRuntime)" />
+    </ItemGroup>
+    <Message Importance="high" Text="Trimmed @(_UnusedAiRuntime->Count()) unused Windows AI runtime file(s) from the publish output." />
+  </Target>
+
+  <!--
     `dotnet publish` does not carry the compiled XAML across for an unpackaged WinUI 3 app:
-    the build emits App.xbf / MainWindow.xbf / <app>.pri, and the publish output silently
-    omits them. The app then builds and installs fine and dies on launch with
-    "XAML parsing failed", because there is no parsed XAML to load. Put them back.
+    the build emits App.xbf / MainWindow.xbf / <app>.pri and the publish output omits them.
+    The app then builds and installs fine and dies on launch with "XAML parsing failed",
+    because there is no parsed XAML to load. Put them back.
   -->
   <Target Name="PublishXamlAssets" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>
