@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Shapes;
+using System.Reflection;
 
 namespace Datameter.App;
 
@@ -34,6 +35,22 @@ public sealed partial class MainPage : UserControl
 
     public MainViewModel ViewModel { get; }
 
+    /// <summary>
+    /// Read from the assembly rather than written into the XAML, so the About block cannot
+    /// drift out of step with what was actually built.
+    /// </summary>
+    private static string AppVersion
+    {
+        get
+        {
+            var attribute = (AssemblyInformationalVersionAttribute?)Attribute.GetCustomAttribute(
+                Assembly.GetExecutingAssembly(), typeof(AssemblyInformationalVersionAttribute));
+
+            // Strip any "+<commit sha>" suffix the SDK appends.
+            return attribute?.InformationalVersion.Split('+')[0] ?? "";
+        }
+    }
+
     public MainPage()
     {
         InitializeComponent();
@@ -58,6 +75,7 @@ public sealed partial class MainPage : UserControl
         };
 
         _preferences = SettingsService.Load();
+        VersionText.Text = $"Version {AppVersion}";
 
         PageRoot.SizeChanged += (_, _) =>
         {

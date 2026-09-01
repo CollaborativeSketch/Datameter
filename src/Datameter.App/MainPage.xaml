@@ -80,7 +80,7 @@
                                                VerticalAlignment="Top" />
                                         <StackPanel>
                                             <TextBlock Text="Datameter" FontSize="14" FontWeight="SemiBold" />
-                                            <TextBlock x:Name="VersionText" Text="Version 1.0.0" FontSize="11.5"
+                                            <TextBlock x:Name="VersionText" Text="Version" FontSize="11.5"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                             <TextBlock Text="Built by Alexander Akinbiyi" FontSize="11.5"
                                                        Margin="0,4,0,0"
