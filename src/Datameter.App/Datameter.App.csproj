@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <RootNamespace>Datameter.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\datameter.ico</ApplicationIcon>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <!--
+      Unpackaged and self-contained. The machine has the Windows App Runtime *framework*
+      package, but an unpackaged app also needs the DDLM/Main/Singleton components that
+      only the full runtime installer lays down — without them the bootstrapper refuses to
+      start. Carrying the runtime in the output avoids a machine-wide install entirely and
+      makes the build portable: copy the folder anywhere and it runs.
+    -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Datameter</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Microsoft.Windows.SDK.BuildTools comes in transitively; pinning it only causes downgrades. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250916003" />
+    <!-- Only for pulling an executable's icon off disk for the per-app list. -->
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Datameter.Core\Datameter.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same mark the .ico is generated from, for the in-app title bar. -->
+    <Content Include="..\..\assets\logo-256.png" Link="Assets\logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!--
+    `dotnet publish` does not carry the compiled XAML across for an unpackaged WinUI 3 app:
+    the build emits App.xbf / MainWindow.xbf / <app>.pri, and the publish output silently
+    omits them. The app then builds and installs fine and dies on launch with
+    "XAML parsing failed", because there is no parsed XAML to load. Put them back.
+  -->
+  <Target Name="PublishXamlAssets" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_DatameterXamlAsset Include="$(OutputPath)**\*.xbf" />
+      <_DatameterXamlAsset Include="$(OutputPath)$(AssemblyName).pri" />
+
+      <ResolvedFileToPublish Include="@(_DatameterXamlAsset)">
+        <RelativePath>%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+</Project>

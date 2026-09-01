@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+
+# Installer output
+installer/Output/
+*.exe
+!installer/**/*.iss
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local data — the usage database and settings live in %LOCALAPPDATA%\Datameter,
+# but never commit one if it is copied here for debugging.
+*.db
+*.db-wal
+*.db-shm
+settings.json
+error.log

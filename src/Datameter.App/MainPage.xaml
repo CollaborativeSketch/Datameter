@@ -1,0 +1,243 @@
+<UserControl
+    x:Class="Datameter.App.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Datameter.App"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <Grid x:Name="PageRoot">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Progress sits outside the scroll area. Reading every network takes minutes on a
+            first run, and inside the page this scrolled off the bottom where nobody saw it.
+        -->
+        <StackPanel Grid.Row="0" Padding="30,4,30,10"
+                    Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+            <!-- ProgressBar does not stretch on its own; without this it keeps its default width. -->
+            <ProgressBar IsIndeterminate="True" Height="2" Margin="0,0,0,8"
+                         HorizontalAlignment="Stretch" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <ProgressRing IsActive="True" Width="14" Height="14" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" FontSize="12"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Padding="30,10,30,30" VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="880" HorizontalAlignment="Stretch">
+
+                <!-- Heading, period picker, settings -->
+                <Grid Margin="0,10,0,10" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Data usage" VerticalAlignment="Center"
+                               FontSize="28" FontWeight="SemiBold" />
+
+                    <ComboBox Grid.Column="1" x:Name="PeriodPicker" MinWidth="168"
+                              VerticalAlignment="Center"
+                              ItemsSource="{x:Bind ViewModel.Periods}"
+                              SelectedItem="{x:Bind ViewModel.SelectedPeriod, Mode=TwoWay}"
+                              ToolTipService.ToolTip="Time period" />
+
+                    <Button Grid.Column="2" Width="36" Height="34" Padding="0" CornerRadius="6"
+                            ToolTipService.ToolTip="Settings">
+                        <FontIcon Glyph="&#xE713;" FontSize="15" />
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <StackPanel Width="230" Spacing="4">
+                                    <TextBlock Text="Appearance" FontSize="14" FontWeight="SemiBold"
+                                               Margin="0,0,0,6" />
+                                    <RadioButton x:Name="ThemeLight" Content="Light" GroupName="Theme"
+                                                 Checked="OnThemeChecked" Tag="Light" />
+                                    <RadioButton x:Name="ThemeDark" Content="Dark" GroupName="Theme"
+                                                 Checked="OnThemeChecked" Tag="Dark" />
+                                    <RadioButton x:Name="ThemeSystem" Content="Use system setting"
+                                                 GroupName="Theme" Checked="OnThemeChecked" Tag="Default" />
+                                    <TextBlock Text="Records are kept in your local Datameter database and survive Windows discarding its own history."
+                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,10,0,0"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
+
+                <!-- Custom range, revealed only when that period is chosen -->
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,14"
+                            Visibility="{x:Bind ViewModel.IsCustomRange, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                    <CalendarDatePicker x:Name="CustomFromPicker" Header="From" MinWidth="180"
+                                        DateChanged="OnCustomRangeChanged" />
+                    <CalendarDatePicker x:Name="CustomToPicker" Header="To" MinWidth="180"
+                                        DateChanged="OnCustomRangeChanged" />
+                </StackPanel>
+
+                <!-- Headline total -->
+                <StackPanel Orientation="Horizontal" Spacing="14" Margin="0,6,0,4" MinHeight="62">
+                    <TextBlock Text="{x:Bind ViewModel.TotalValue, Mode=OneWay}"
+                               FontSize="54" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="{x:Bind ViewModel.TotalUnit, Mode=OneWay}"
+                               FontSize="23" VerticalAlignment="Bottom" Margin="-6,0,0,9"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="18"
+                                VerticalAlignment="Bottom" Margin="16,0,0,11">
+                        <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="13">
+                            <Run Text="Sent" />
+                            <Run Text="{x:Bind ViewModel.SentText, Mode=OneWay}"
+                                 FontWeight="SemiBold"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </TextBlock>
+                        <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="13">
+                            <Run Text="Received" />
+                            <Run Text="{x:Bind ViewModel.ReceivedText, Mode=OneWay}"
+                                 FontWeight="SemiBold"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
+
+                <Grid Margin="0,0,0,18">
+                    <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" FontSize="12"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <HyperlinkButton Content="Show all networks" HorizontalAlignment="Right"
+                                     Padding="4,0" FontSize="12" Click="OnClearNetworkFilter"
+                                     Visibility="{x:Bind ViewModel.IsFiltered, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+
+                <!--
+                    Networks: a proportional bar over a row of tiles, the Storage overview pattern.
+                    Both are built in code so the columns can be star-sized from real shares, and
+                    so a tile can carry the selected state. Clicking a tile drills into it.
+                -->
+                <Grid x:Name="ContributionBar" Height="14" Margin="0,0,0,12" />
+                <Grid x:Name="NetworkChips" Margin="0,0,0,30" />
+
+                <!-- Empty state -->
+                <Border Padding="24" Margin="0,0,0,20" CornerRadius="6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Spacing="6" HorizontalAlignment="Center">
+                        <TextBlock Text="Nothing recorded for this period" FontSize="14"
+                                   FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="Pick a longer period, or leave Datameter running to build up history."
+                                   FontSize="12" HorizontalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Per-app usage, the Settings breakdown -->
+                <Grid Margin="0,0,0,12">
+                    <TextBlock Text="{x:Bind ViewModel.AppsTitle, Mode=OneWay}" FontSize="14"
+                               FontWeight="SemiBold" VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.AppsNote, Mode=OneWay}" FontSize="11.5"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                </Grid>
+
+                <!--
+                    Placeholder rows while the per-app query is out. It is a live call to
+                    Windows, several seconds per network, so the shape of the answer goes up
+                    immediately and fills in rather than leaving a blank gap.
+                -->
+                <StackPanel x:Name="AppSkeleton" Spacing="8" Margin="0,0,0,10"
+                            Visibility="{x:Bind ViewModel.IsLoadingApps, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+
+                <ItemsControl ItemsSource="{x:Bind ViewModel.Apps}" Margin="0,0,0,10"
+                              Visibility="{x:Bind ViewModel.ShowAppList, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:AppVm">
+                            <Border Padding="14,12" Margin="0,0,0,8" CornerRadius="6"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1">
+                                <StackPanel Spacing="9">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!--
+                                            Every logo sits on a plate. Several app icons are
+                                            white-on-transparent and would vanish against a
+                                            light page without one.
+                                        -->
+                                        <Border Grid.Column="0" Width="28" Height="28" CornerRadius="5"
+                                                Background="{x:Bind IconPlate, Mode=OneWay}">
+                                            <Grid>
+                                                <Image Source="{x:Bind Icon, Mode=OneWay}"
+                                                       Width="{x:Bind IconSize, Mode=OneWay}"
+                                                       Height="{x:Bind IconSize, Mode=OneWay}"
+                                                       Visibility="{x:Bind HasIcon, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                                                <FontIcon Glyph="&#xECAA;" FontSize="13"
+                                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                          Visibility="{x:Bind NoIcon, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                                            </Grid>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="1" Text="{x:Bind Name}" FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTipService.ToolTip="{x:Bind AttributionId}" />
+
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ValueText}" FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+
+                                    <ProgressBar Value="{x:Bind BarPercent}" Maximum="100" Height="4"
+                                                 Background="{ThemeResource ControlStrongFillColorDisabledBrush}"
+                                                 Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button x:Name="ShowAllAppsButton" Content="Show all apps" Margin="0,0,0,28"
+                        HorizontalAlignment="Left" Click="OnShowAllApps"
+                        Visibility="{x:Bind ViewModel.HasMoreApps, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+
+                <!-- Chart -->
+                <TextBlock Text="{x:Bind ViewModel.ChartTitle, Mode=OneWay}" FontSize="14"
+                           FontWeight="SemiBold" Margin="0,0,0,12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Border Padding="16,14,16,11" CornerRadius="6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <Grid x:Name="ChartHost" Height="80" />
+                        <Grid Margin="0,9,0,0">
+                            <TextBlock Text="{x:Bind ViewModel.AxisStart, Mode=OneWay}" FontSize="11"
+                                       HorizontalAlignment="Left"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="{x:Bind ViewModel.AxisEnd, Mode=OneWay}" FontSize="11"
+                                       HorizontalAlignment="Right"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
