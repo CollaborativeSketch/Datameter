@@ -477,9 +477,9 @@ public sealed partial class MainPage : UserControl
             {
                 Background = Palette.Network(theme, segment.ColorIndex),
                 CornerRadius = new CornerRadius(first ? 4 : 2, last ? 4 : 2, last ? 4 : 2, first ? 4 : 2),
-                Margin = new Thickness(first ? 0 : 1.5, 0, last ? 0 : 1.5, 0),
-                // Dim the others when one network is being examined.
-                Opacity = !ViewModel.IsFiltered || ViewModel.SelectedNetworkNames.Contains(segment.Name) ? 1.0 : 0.3
+                Margin = new Thickness(first ? 0 : 1.5, 0, last ? 0 : 1.5, 0)
+                // No dimming: the view model only supplies the segments the total covers, so a
+                // selection already fills the bar.
             };
 
             ToolTipService.SetToolTip(slice, $"{segment.Name} · {segment.ValueText} · {segment.PercentText}");

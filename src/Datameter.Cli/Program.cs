@@ -17,6 +17,27 @@ using var store = new UsageStore(dbPath);
 var provider = new UsageProvider();
 var sync = new SyncService(provider, store);
 
+// ---- diagnostics ---------------------------------------------------------
+// --networks prints the stored network rows and stops. Two rows sharing a profile name
+// means the same network is being counted twice.
+if (args.Contains("--networks"))
+{
+    var rows = store.DescribeNetworks();
+    Console.WriteLine($"{"id",4}  {"profile",-34}  {"adapter",-38}  {"src",3}  {"hours",6}  usage");
+    foreach (var (id, name, adapter, source, hours, bytes) in rows)
+    {
+        var src = source switch { 0 => "win", 1 => "imp", _ => "-" };
+        Console.WriteLine($"{id,4}  {Trim(name, 34),-34}  {(adapter.Length == 0 ? "(none)" : adapter),-38}  {src,3}  {hours,6}  {ByteFormat.Humanize(bytes)}");
+    }
+
+    var dupes = rows.GroupBy(r => r.ProfileName).Where(g => g.Count() > 1).ToList();
+    Console.WriteLine();
+    Console.WriteLine($"{rows.Count} network rows, {dupes.Count} profile name(s) appearing more than once");
+    foreach (var d in dupes)
+        Console.WriteLine($"  DUPLICATE: {d.Key} -> ids {string.Join(", ", d.Select(x => x.Id))}");
+    return;
+}
+
 // ---- sync ----------------------------------------------------------------
 var sw = Stopwatch.StartNew();
 var progress = new Progress<SyncProgress>(p =>

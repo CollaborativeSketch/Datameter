@@ -27,6 +27,7 @@ public sealed class UsageStore : IDisposable
         _db.Open();
         Execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
         CreateSchema();
+        MergeDuplicateNetworks();
     }
 
     public static string DefaultPath => Path.Combine(
@@ -63,6 +64,71 @@ public sealed class UsageStore : IDisposable
             LastAttemptUtc TEXT NOT NULL
         );");
 
+    /// <summary>
+    /// Collapses networks that share a profile name, then makes the name unique.
+    ///
+    /// Identity used to be (ProfileName, AdapterId), which looked more precise and was wrong:
+    /// ConnectionProfile.NetworkAdapter throws for a profile that is not currently available,
+    /// so the adapter id is only known when you happen to be connected to that network. The
+    /// same Wi-Fi therefore stored as two rows — one with an adapter id, one without — and the
+    /// totals counted it twice. The profile name is the only identifier Windows gives us that
+    /// is stable whether or not the network is in range.
+    /// </summary>
+    private void MergeDuplicateNetworks()
+    {
+        lock (_sync)
+        {
+            using var tx = _db.BeginTransaction();
+
+            var duplicates = new List<(long Keep, long Drop)>();
+            using (var find = _db.CreateCommand())
+            {
+                find.Transaction = tx;
+                find.CommandText =
+                    "SELECT a.Id, b.Id FROM Network a JOIN Network b " +
+                    "ON a.ProfileName = b.ProfileName AND a.Id < b.Id;";
+                using var r = find.ExecuteReader();
+                while (r.Read()) duplicates.Add((r.GetInt64(0), r.GetInt64(1)));
+            }
+
+            foreach (var (keep, drop) in duplicates)
+            {
+                using (var move = _db.CreateCommand())
+                {
+                    move.Transaction = tx;
+                    // Hours the API supplied (Source 0) beat imported ones (Source 1) on collision.
+                    move.CommandText =
+                        "INSERT INTO HourlyUsage (NetworkId, HourUtc, BytesSent, BytesReceived, Source) " +
+                        "SELECT $keep, HourUtc, BytesSent, BytesReceived, Source " +
+                        "FROM HourlyUsage WHERE NetworkId = $drop " +
+                        "ON CONFLICT(NetworkId, HourUtc) DO UPDATE SET " +
+                        "  BytesSent = excluded.BytesSent, BytesReceived = excluded.BytesReceived, " +
+                        "  Source = excluded.Source " +
+                        "WHERE excluded.Source <= HourlyUsage.Source;";
+                    move.Parameters.AddWithValue("$keep", keep);
+                    move.Parameters.AddWithValue("$drop", drop);
+                    move.ExecuteNonQuery();
+                }
+
+                using var remove = _db.CreateCommand();
+                remove.Transaction = tx;
+                remove.CommandText = "DELETE FROM Network WHERE Id = $drop;";   // cascades
+                remove.Parameters.AddWithValue("$drop", drop);
+                remove.ExecuteNonQuery();
+            }
+
+            using (var index = _db.CreateCommand())
+            {
+                index.Transaction = tx;
+                index.CommandText =
+                    "CREATE UNIQUE INDEX IF NOT EXISTS UX_Network_ProfileName ON Network(ProfileName);";
+                index.ExecuteNonQuery();
+            }
+
+            tx.Commit();
+        }
+    }
+
     /// <summary>Finds or creates the row for a network, keeping its colour stable forever.</summary>
     public long UpsertNetwork(ProfileHandle handle) =>
         UpsertNetwork(handle.ProfileName, handle.AdapterId, handle.Kind, handle.IsMetered);
@@ -80,18 +146,24 @@ public sealed class UsageStore : IDisposable
 
             using (var find = _db.CreateCommand())
             {
-                find.CommandText = "SELECT Id FROM Network WHERE ProfileName = $n AND AdapterId = $a;";
+                // Matched on name alone. The adapter id is only knowable while the network is
+                // available, so including it here would create a second row for the same Wi-Fi
+                // whenever it happened to be out of range — and double its usage in every total.
+                find.CommandText = "SELECT Id FROM Network WHERE ProfileName = $n;";
                 find.Parameters.AddWithValue("$n", profileName);
-                find.Parameters.AddWithValue("$a", adapterId);
 
                 if (find.ExecuteScalar() is long existing)
                 {
                     using var touch = _db.CreateCommand();
+                    // Keep a known adapter id rather than letting a later blank overwrite it.
                     touch.CommandText =
-                        "UPDATE Network SET LastSeenUtc = $t, IsMetered = $m, Kind = $k WHERE Id = $id;";
+                        "UPDATE Network SET LastSeenUtc = $t, IsMetered = $m, Kind = $k, " +
+                        "  AdapterId = CASE WHEN $a <> '' THEN $a ELSE AdapterId END " +
+                        "WHERE Id = $id;";
                     touch.Parameters.AddWithValue("$t", now);
                     touch.Parameters.AddWithValue("$m", isMetered ? 1 : 0);
                     touch.Parameters.AddWithValue("$k", (int)kind);
+                    touch.Parameters.AddWithValue("$a", adapterId);
                     touch.Parameters.AddWithValue("$id", existing);
                     touch.ExecuteNonQuery();
                     return existing;
@@ -220,18 +292,36 @@ public sealed class UsageStore : IDisposable
         {
             using var cmd = _db.CreateCommand();
             cmd.CommandText =
-                "SELECT n.ProfileName, n.AdapterId FROM Network n " +
+                "SELECT n.ProfileName FROM Network n " +
                 "WHERE EXISTS (SELECT 1 FROM HourlyUsage h WHERE h.NetworkId = n.Id);";
 
             var keys = new HashSet<string>(StringComparer.Ordinal);
             using var r = cmd.ExecuteReader();
-            while (r.Read()) keys.Add(MakeKey(r.GetString(0), r.GetString(1)));
+            while (r.Read()) keys.Add(r.GetString(0));
             return keys;
         }
     }
 
-    public static string MakeKey(string profileName, string? adapterId) =>
-        profileName + " " + (adapterId ?? string.Empty);
+    /// <summary>One row per stored network, for diagnostics. Ordered so duplicates sit together.</summary>
+    public IReadOnlyList<(long Id, string ProfileName, string AdapterId, int Source, long Hours, long Bytes)> DescribeNetworks()
+    {
+        lock (_sync)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText =
+                "SELECT n.Id, n.ProfileName, n.AdapterId, " +
+                "       COALESCE(MIN(h.Source), -1), COUNT(h.HourUtc), " +
+                "       COALESCE(SUM(h.BytesSent + h.BytesReceived), 0) " +
+                "FROM Network n LEFT JOIN HourlyUsage h ON h.NetworkId = n.Id " +
+                "GROUP BY n.Id ORDER BY n.ProfileName, n.Id;";
+
+            var rows = new List<(long, string, string, int, long, long)>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                rows.Add((r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.GetInt64(4), r.GetInt64(5)));
+            return rows;
+        }
+    }
 
     public DateTimeOffset? GetEarliestRecordedHour()
     {
