@@ -10,7 +10,8 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        Title = "Datameter";
+        Title = AppInfo.DisplayName;
+        AppTitleText.Text = AppInfo.DisplayName;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 900));

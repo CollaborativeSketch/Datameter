@@ -101,6 +101,7 @@ public sealed partial class MainPage : UserControl
         };
 
         App.Speed.Updated += OnSpeedUpdated;
+        AboutName.Text = AppInfo.DisplayName;
         VersionText.Text = $"Version {AppVersion}";
 
         PageRoot.SizeChanged += (_, _) =>
@@ -262,9 +263,22 @@ public sealed partial class MainPage : UserControl
     {
         _settingMeterToggle = true;
         MeterToggle.IsOn = _preferences.ShowSpeedMeter;
+        MeterSizePicker.SelectedIndex = (int)SettingsService.ParseMeterSize(_preferences.MeterSize);
         _settingMeterToggle = false;
 
         if (_preferences.ShowSpeedMeter) ShowMeter();
+    }
+
+    private void OnMeterSizeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settingMeterToggle) return;
+
+        var size = SettingsService.ParseMeterSize(
+            (MeterSizePicker.SelectedItem as FrameworkElement)?.Tag as string);
+
+        _preferences.MeterSize = size.ToString();
+        SettingsService.Save(_preferences);
+        _meter?.SetSize(size);
     }
 
     private void OnMeterToggled(object sender, RoutedEventArgs e)
@@ -310,6 +324,7 @@ public sealed partial class MainPage : UserControl
 
         _meter = meter;
 
+        meter.SetSize(SettingsService.ParseMeterSize(_preferences.MeterSize));
         meter.ApplyTheme(PageRoot.ActualTheme);
         meter.Show(App.Speed.Latest);
         meter.Activate();

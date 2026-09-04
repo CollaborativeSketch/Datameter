@@ -48,8 +48,9 @@ without both a different UI framework and a different source of usage data.
 - Selecting a network narrows every figure to it. Selecting several combines them.
 - A per-application breakdown, equivalent to the one in Settings but summed across all networks
   instead of a single adapter.
-- A live speed readout, and a small floating meter that stays above other windows. Drag it
-  anywhere on screen; right-click it to hide it, or turn it off in settings.
+- A live speed readout, and a small floating meter that stays above other windows. It comes in
+  three sizes, drags anywhere on screen and snaps to the edge, and can be hidden from its own
+  right-click menu or turned off in settings.
 - A usage chart with a labelled scale down its left edge, so a bar can be read as a figure rather
   than only compared with its neighbours.
 - Opens on today the first time it is run, and afterwards on whichever period you last looked at.

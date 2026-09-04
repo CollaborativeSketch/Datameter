@@ -73,8 +73,14 @@
                                                Margin="0,12,0,0" />
                                     <ToggleSwitch x:Name="MeterToggle" OnContent="Showing" OffContent="Hidden"
                                                   Margin="0,-4,0,0" Toggled="OnMeterToggled" />
-                                    <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen; right-click it to hide."
-                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,-2,0,0"
+                                    <ComboBox x:Name="MeterSizePicker" Header="Size" MinWidth="140"
+                                              Margin="0,2,0,0" SelectionChanged="OnMeterSizeChanged">
+                                        <ComboBoxItem Content="Small" Tag="Small" />
+                                        <ComboBoxItem Content="Medium" Tag="Medium" />
+                                        <ComboBoxItem Content="Large" Tag="Large" />
+                                    </ComboBox>
+                                    <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen and it snaps to the edge; right-click it to hide."
+                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,8,0,0"
                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
 
                                     <TextBlock Text="Records are kept in your local Datameter database and survive Windows discarding its own history."
@@ -88,7 +94,8 @@
                                         <Image Source="ms-appx:///Assets/logo.png" Width="32" Height="32"
                                                VerticalAlignment="Top" />
                                         <StackPanel>
-                                            <TextBlock Text="Datameter" FontSize="14" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="AboutName" Text="Datameter"
+                                                       FontSize="14" FontWeight="SemiBold" />
                                             <TextBlock x:Name="VersionText" Text="Version" FontSize="11.5"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                             <TextBlock Text="Built by Alexander Akinbiyi" FontSize="11.5"

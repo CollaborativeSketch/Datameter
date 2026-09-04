@@ -116,19 +116,12 @@ public static class Palette
     // ---- live speed meter ----------------------------------------------------
 
     /// <summary>
-    /// The floating meter's chip. It sits over other people's windows, so it is a touch further
-    /// from the page ground than a card is: solid rather than translucent, and dark enough in
-    /// dark mode to read against a bright window behind it.
-    /// </summary>
-    public static Brush MeterBackground(ElementTheme theme) =>
-        new SolidColorBrush(IsLight(theme) ? Rgb(0xFA, 0xFA, 0xFA) : Rgb(0x1F, 0x1F, 0x1F));
-
-    public static Brush MeterStroke(ElementTheme theme) =>
-        new SolidColorBrush(IsLight(theme) ? Rgb(0xD6, 0xD6, 0xD6) : Rgb(0x3D, 0x3D, 0x3D));
-
-    /// <summary>
-    /// Direction colours. Kept apart in hue rather than only in shape, so the two rows can be
-    /// told apart at a glance at the size the meter actually runs at.
+    /// Direction colours for the meter, taken from the same tuned pairs the network colours
+    /// come from: the amber and the green of the palette, darkened for the light row because
+    /// these are small glyphs rather than fills and have to hold their own against white.
+    ///
+    /// Hue does the work rather than shape alone, so the two rows separate at the size the
+    /// meter actually runs at.
     /// </summary>
     public static Brush Upload(ElementTheme theme) =>
         new SolidColorBrush(IsLight(theme) ? Rgb(0xE0, 0x6C, 0x00) : Rgb(0xFF, 0xA9, 0x4D));

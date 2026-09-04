@@ -3,6 +3,14 @@ using Microsoft.UI.Xaml;
 
 namespace Datameter.App;
 
+/// <summary>How large the floating meter is drawn. One setting moves card, text and glyphs.</summary>
+public enum MeterSizeOption
+{
+    Small,
+    Medium,
+    Large
+}
+
 public sealed class Preferences
 {
     /// <summary>"Default" follows the system, matching the Windows personalisation setting.</summary>
@@ -27,6 +35,9 @@ public sealed class Preferences
     /// </summary>
     public int? MeterX { get; set; }
     public int? MeterY { get; set; }
+
+    /// <summary>Size of the floating meter.</summary>
+    public string MeterSize { get; set; } = nameof(MeterSizeOption.Medium);
 
     /// <summary>What a fresh install opens on.</summary>
     public const string DefaultPeriod = "Today";
@@ -70,4 +81,7 @@ public static class SettingsService
 
     public static ElementTheme ParseTheme(string? value) =>
         Enum.TryParse<ElementTheme>(value, out var theme) ? theme : ElementTheme.Default;
+
+    public static MeterSizeOption ParseMeterSize(string? value) =>
+        Enum.TryParse<MeterSizeOption>(value, out var size) ? size : MeterSizeOption.Medium;
 }

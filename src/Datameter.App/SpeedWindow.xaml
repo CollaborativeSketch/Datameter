@@ -4,30 +4,37 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        Everything here is coloured from Palette rather than {ThemeResource}. The meter is its
-        own window, and it has to follow the theme the main window is showing rather than the
-        one the system happens to be on.
+        A card, drawn to the same recipe as the tiles on the page: the card fill, the card
+        stroke, a 6px radius and Fluent icon glyphs. Colours come from Palette rather than
+        {ThemeResource} because this is a window of its own and has to follow the theme the
+        main window is showing, not the one the system happens to be on.
+
+        Sizes are set from code so that one setting moves the card, the text and the glyphs
+        together. Nothing here is sized in the markup.
     -->
-    <Border x:Name="Root" BorderThickness="1" CornerRadius="7" Padding="10,5,11,6">
-        <Grid ColumnSpacing="8" RowSpacing="1">
+    <Border x:Name="Root" BorderThickness="1" CornerRadius="6"
+            HorizontalAlignment="Left" VerticalAlignment="Top">
+        <Grid x:Name="Layout">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <TextBlock x:Name="UpArrow" Grid.Row="0" Grid.Column="0" Text="&#x2191;"
-                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <FontIcon x:Name="UpArrow" Grid.Row="0" Grid.Column="0" Glyph="&#xE74A;"
+                      VerticalAlignment="Center" />
             <TextBlock x:Name="UpValue" Grid.Row="0" Grid.Column="1" Text="0.0 KB/s"
-                       FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                       FontWeight="SemiBold" HorizontalAlignment="Right"
+                       VerticalAlignment="Center" />
 
-            <TextBlock x:Name="DownArrow" Grid.Row="1" Grid.Column="0" Text="&#x2193;"
-                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <FontIcon x:Name="DownArrow" Grid.Row="1" Grid.Column="0" Glyph="&#xE74B;"
+                      VerticalAlignment="Center" />
             <TextBlock x:Name="DownValue" Grid.Row="1" Grid.Column="1" Text="0.0 KB/s"
-                       FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                       FontWeight="SemiBold" HorizontalAlignment="Right"
+                       VerticalAlignment="Center" />
         </Grid>
     </Border>
 </Window>

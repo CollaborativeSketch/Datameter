@@ -18,7 +18,7 @@
             </Grid.ColumnDefinitions>
             <Image Grid.Column="0" Source="ms-appx:///Assets/logo.png"
                    Width="16" Height="16" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="Datameter"
+            <TextBlock Grid.Column="1" x:Name="AppTitleText" Text="Datameter"
                        Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        VerticalAlignment="Center" />
