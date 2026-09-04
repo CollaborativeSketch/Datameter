@@ -68,6 +68,21 @@
                                                  Checked="OnThemeChecked" Tag="Dark" />
                                     <RadioButton x:Name="ThemeSystem" Content="Use system setting"
                                                  GroupName="Theme" Checked="OnThemeChecked" Tag="Default" />
+
+                                    <TextBlock Text="Speed meter" FontSize="14" FontWeight="SemiBold"
+                                               Margin="0,12,0,0" />
+                                    <ToggleSwitch x:Name="MeterToggle" OnContent="Showing" OffContent="Hidden"
+                                                  Margin="0,-4,0,0" Toggled="OnMeterToggled" />
+                                    <ComboBox x:Name="MeterSizePicker" Header="Size" MinWidth="140"
+                                              Margin="0,2,0,0" SelectionChanged="OnMeterSizeChanged">
+                                        <ComboBoxItem Content="Small" Tag="Small" />
+                                        <ComboBoxItem Content="Medium" Tag="Medium" />
+                                        <ComboBoxItem Content="Large" Tag="Large" />
+                                    </ComboBox>
+                                    <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen and it snaps to the edge; right-click it to hide."
+                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,8,0,0"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+
                                     <TextBlock Text="Records are kept in your local Datameter database and survive Windows discarding its own history."
                                                TextWrapping="Wrap" FontSize="11.5" Margin="0,10,0,0"
                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
@@ -79,7 +94,8 @@
                                         <Image Source="ms-appx:///Assets/logo.png" Width="32" Height="32"
                                                VerticalAlignment="Top" />
                                         <StackPanel>
-                                            <TextBlock Text="Datameter" FontSize="14" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="AboutName" Text="Datameter"
+                                                       FontSize="14" FontWeight="SemiBold" />
                                             <TextBlock x:Name="VersionText" Text="Version" FontSize="11.5"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                             <TextBlock Text="Built by Alexander Akinbiyi" FontSize="11.5"
@@ -128,6 +144,28 @@
                                  FontWeight="SemiBold"
                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </TextBlock>
+
+                        <!--
+                            Live speed. A different measurement from everything else on the
+                            page: the rest is history Windows recorded by the hour, this is the
+                            adapter counters differentiated over the last second. The figures
+                            carry a minimum width so the row does not reshuffle every second as
+                            the numbers change length.
+                        -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="Now" FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock x:Name="SpeedUpArrow" Text="&#x2191;" FontSize="12"
+                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Bind ViewModel.SpeedUp, Mode=OneWay}" FontSize="13"
+                                       FontWeight="SemiBold" MinWidth="62" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="SpeedDownArrow" Text="&#x2193;" FontSize="12"
+                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Bind ViewModel.SpeedDown, Mode=OneWay}" FontSize="13"
+                                       FontWeight="SemiBold" MinWidth="62" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
 
@@ -244,9 +282,30 @@
                 <Border Padding="16,14,16,11" CornerRadius="6"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                    <StackPanel>
-                        <Grid x:Name="ChartHost" Height="80" />
-                        <Grid Margin="0,9,0,0">
+                    <!--
+                        Ruler, plot and the date axis under it. The ruler is its own column so
+                        that the plot and the dates below stay aligned with each other; ruler
+                        and gridlines are both drawn in code against the same height.
+                    -->
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0"
+                              Height="150" MinWidth="40" />
+
+                        <Grid Grid.Row="0" Grid.Column="1" Height="150">
+                            <Grid x:Name="ChartGridLines" Height="150" />
+                            <Grid x:Name="ChartHost" Height="150" />
+                        </Grid>
+
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,9,0,0">
                             <TextBlock Text="{x:Bind ViewModel.AxisStart, Mode=OneWay}" FontSize="11"
                                        HorizontalAlignment="Left"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
@@ -254,7 +313,7 @@
                                        HorizontalAlignment="Right"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         </Grid>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
             </StackPanel>

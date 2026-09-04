@@ -113,6 +113,27 @@ public static class Palette
         };
     }
 
+    // ---- live speed meter ----------------------------------------------------
+
+    /// <summary>
+    /// Direction colours for the meter, taken from the same tuned pairs the network colours
+    /// come from: the amber and the green of the palette, darkened for the light row because
+    /// these are small glyphs rather than fills and have to hold their own against white.
+    ///
+    /// Hue does the work rather than shape alone, so the two rows separate at the size the
+    /// meter actually runs at.
+    /// </summary>
+    public static Brush Upload(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Rgb(0xE0, 0x6C, 0x00) : Rgb(0xFF, 0xA9, 0x4D));
+
+    public static Brush Download(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Rgb(0x00, 0x8F, 0x69) : Rgb(0x5C, 0xD6, 0xA9));
+
+    /// <summary>Gridlines and the baseline of the usage chart: present, but never the subject.</summary>
+    public static Brush ChartGridLine(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Color.FromArgb(0x26, 0x00, 0x00, 0x00)
+                                           : Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
+
     public static Brush Transparent() => new SolidColorBrush(Colors.Transparent);
 
     private static Color Rgb(byte r, byte g, byte b) => Color.FromArgb(0xFF, r, g, b);

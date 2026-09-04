@@ -48,9 +48,21 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// The live speed reading, shared by the page and the floating meter so the two can never
+    /// disagree. It is a difference between counter readings, so it has to be sampled once.
+    /// </summary>
+    public static SpeedService Speed { get; } = new();
+
+    /// <summary>The main window, so the meter can bring it forward.</summary>
+    public static Window? PrimaryWindow { get; private set; }
+
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        Speed.Start();
+
         _window = new MainWindow();
+        PrimaryWindow = _window;
         _window.Activate();
     }
 }

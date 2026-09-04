@@ -28,10 +28,17 @@ public sealed partial class MainPage : UserControl
     /// <summary>Drives the sheen across the skeleton placeholders while apps are loading.</summary>
     private readonly Storyboard _shimmer = new();
 
+    /// <summary>Watches the Windows light/dark setting while "Use system setting" is chosen.</summary>
+    private readonly SystemThemeWatcher _themeWatcher;
+
+    /// <summary>The floating meter, when it is on screen.</summary>
+    private SpeedWindow? _meter;
+
     private CancellationTokenSource? _appQuery;
     private bool _syncing;
     private bool _settingTheme;
     private bool _settingDates;
+    private bool _settingMeterToggle;
 
     public MainViewModel ViewModel { get; }
 
@@ -55,9 +62,12 @@ public sealed partial class MainPage : UserControl
     {
         InitializeComponent();
 
+        // Loaded before the view model, which needs the period this install was last left on.
+        _preferences = SettingsService.Load();
+
         _store = new UsageStore(UsageStore.DefaultPath);
         _sync = new SyncService(_provider, _store);
-        ViewModel = new MainViewModel(_store);
+        ViewModel = new MainViewModel(_store, _preferences);
 
         ViewModel.VisualsChanged += (_, _) =>
         {
@@ -72,9 +82,26 @@ public sealed partial class MainPage : UserControl
         ViewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.IsLoadingApps)) UpdateSkeletonState();
+
+            // The period is saved as it is chosen rather than on the way out, so a crash or a
+            // forced close cannot lose it.
+            if (e.PropertyName is nameof(MainViewModel.SelectedPeriod)
+                or nameof(MainViewModel.CustomFrom)
+                or nameof(MainViewModel.CustomTo))
+            {
+                RememberPeriod();
+            }
         };
 
-        _preferences = SettingsService.Load();
+        _themeWatcher = new SystemThemeWatcher(DispatcherQueue);
+        _themeWatcher.Changed += (_, _) =>
+        {
+            if (SettingsService.ParseTheme(_preferences.Theme) == ElementTheme.Default)
+                ApplyTheme(ElementTheme.Default);
+        };
+
+        App.Speed.Updated += OnSpeedUpdated;
+        AboutName.Text = AppInfo.DisplayName;
         VersionText.Text = $"Version {AppVersion}";
 
         PageRoot.SizeChanged += (_, _) =>
@@ -98,6 +125,7 @@ public sealed partial class MainPage : UserControl
             {
                 ApplySavedTheme();
                 SyncDatePickers();
+                ApplyMeterPreference();
                 await StartupAsync();
             }
             catch (Exception ex)
@@ -141,13 +169,24 @@ public sealed partial class MainPage : UserControl
     /// <summary>
     /// RequestedTheme has to be set on the window's root element; setting it on this control
     /// alone would leave the title bar and backdrop on the old theme.
+    ///
+    /// "Use system setting" is resolved to a concrete theme here rather than left as Default.
+    /// Default delegates to Application.RequestedTheme, which an unpackaged WinUI 3 app fixes
+    /// at startup, so a fresh install could open on the wrong one and stay there. Resolving it
+    /// ourselves — and again whenever Windows changes — makes the setting behave as it reads.
     /// </summary>
     private void ApplyTheme(ElementTheme theme)
     {
+        // A system theme that cannot be read comes back as Default, in which case the
+        // framework's own resolution is a better answer than a guess.
+        var effective = theme == ElementTheme.Default ? SystemThemeWatcher.Current() : theme;
+
         if (XamlRoot?.Content is FrameworkElement root)
-            root.RequestedTheme = theme;
+            root.RequestedTheme = effective;
         else
-            RequestedTheme = theme;
+            RequestedTheme = effective;
+
+        _meter?.ApplyTheme(effective);
 
         // ActualThemeChanged does the repaint, but it does not fire when the requested theme
         // resolves to the one already showing — so ask for a repaint either way.
@@ -157,10 +196,16 @@ public sealed partial class MainPage : UserControl
     /// <summary>Repaints everything the code draws, after the theme changes under it.</summary>
     private void RepaintForTheme()
     {
+        var theme = PageRoot.ActualTheme;
+
         RebuildContributionBar();
         RebuildNetworkChips();
         RebuildChart();
         RepaintIconPlates();
+
+        SpeedUpArrow.Foreground = Palette.Upload(theme);
+        SpeedDownArrow.Foreground = Palette.Download(theme);
+        _meter?.ApplyTheme(theme);
 
         // The skeleton's bars and sheen are theme-coloured too.
         if (ViewModel.IsLoadingApps) UpdateSkeletonState();
@@ -191,6 +236,134 @@ public sealed partial class MainPage : UserControl
     }
 
     private void OnClearNetworkFilter(object sender, RoutedEventArgs e) => ViewModel.ClearNetworkFilter();
+
+    /// <summary>
+    /// Records the period on screen, so the next launch opens on it. The custom bounds travel
+    /// with it, or restoring "Custom range" would land on a window the user never chose.
+    /// </summary>
+    private void RememberPeriod()
+    {
+        _preferences.Period = ViewModel.SelectedPeriod.Label;
+        _preferences.CustomFrom = ViewModel.CustomFrom;
+        _preferences.CustomTo = ViewModel.CustomTo;
+        SettingsService.Save(_preferences);
+    }
+
+    // ---- live speed ----------------------------------------------------------
+
+    private void OnSpeedUpdated(object? sender, SpeedSample sample)
+    {
+        ViewModel.SetSpeed(sample);
+        _meter?.Show(sample);
+    }
+
+    // ---- floating meter ------------------------------------------------------
+
+    private void ApplyMeterPreference()
+    {
+        _settingMeterToggle = true;
+        MeterToggle.IsOn = _preferences.ShowSpeedMeter;
+        SelectMeterSize(SettingsService.ParseMeterSize(_preferences.MeterSize));
+        _settingMeterToggle = false;
+
+        if (_preferences.ShowSpeedMeter) ShowMeter();
+    }
+
+    /// <summary>
+    /// Selects by tag rather than by index. The tags are what the choice is read back from, so
+    /// matching on them too keeps the picker correct however the items are ordered in markup.
+    /// </summary>
+    private void SelectMeterSize(MeterSizeOption size)
+    {
+        MeterSizePicker.SelectedItem = MeterSizePicker.Items
+            .OfType<FrameworkElement>()
+            .FirstOrDefault(item => (item.Tag as string) == size.ToString());
+    }
+
+    private void OnMeterSizeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settingMeterToggle) return;
+
+        var size = SettingsService.ParseMeterSize(
+            (MeterSizePicker.SelectedItem as FrameworkElement)?.Tag as string);
+
+        _preferences.MeterSize = size.ToString();
+        SettingsService.Save(_preferences);
+        _meter?.SetSize(size);
+    }
+
+    private void OnMeterToggled(object sender, RoutedEventArgs e)
+    {
+        if (_settingMeterToggle) return;
+        SetMeterVisible(MeterToggle.IsOn);
+    }
+
+    /// <summary>
+    /// The single way the meter is shown or hidden, because it can be dismissed from its own
+    /// menu as well as from this switch, and the two must not drift apart.
+    /// </summary>
+    private void SetMeterVisible(bool visible)
+    {
+        _preferences.ShowSpeedMeter = visible;
+        SettingsService.Save(_preferences);
+
+        _settingMeterToggle = true;
+        MeterToggle.IsOn = visible;
+        _settingMeterToggle = false;
+
+        if (visible) ShowMeter();
+        else HideMeter();
+    }
+
+    private void ShowMeter()
+    {
+        if (_meter is not null)
+        {
+            _meter.Activate();
+            return;
+        }
+
+        var meter = new SpeedWindow();
+        meter.HideRequested += (_, _) => SetMeterVisible(false);
+        meter.ShowMainRequested += (_, _) => App.PrimaryWindow?.Activate();
+        meter.PositionChanged += (_, at) =>
+        {
+            _preferences.MeterX = at.X;
+            _preferences.MeterY = at.Y;
+            SettingsService.Save(_preferences);
+        };
+
+        _meter = meter;
+
+        meter.SetSize(SettingsService.ParseMeterSize(_preferences.MeterSize));
+        meter.ApplyTheme(PageRoot.ActualTheme);
+        meter.Show(App.Speed.Latest);
+        meter.Activate();
+        meter.Place(_preferences.MeterX, _preferences.MeterY);
+
+        // Activating the meter takes focus. Hand it straight back, so showing the meter never
+        // pulls the user out of what they were reading.
+        App.PrimaryWindow?.Activate();
+    }
+
+    private void HideMeter()
+    {
+        var meter = _meter;
+        _meter = null;
+        meter?.CloseQuietly();
+    }
+
+    /// <summary>
+    /// Called when the main window closes. The meter is a window in its own right, so without
+    /// this the process would outlive the window the user actually closed.
+    /// </summary>
+    public void Shutdown()
+    {
+        _refreshTimer.Stop();
+        App.Speed.Updated -= OnSpeedUpdated;
+        _themeWatcher.Dispose();
+        HideMeter();
+    }
 
     // ---- startup and sync ----------------------------------------------------
 
@@ -615,10 +788,55 @@ public sealed partial class MainPage : UserControl
         }
     }
 
+    /// <summary>Roughly the line box of an 11px label, used to centre it on its rule.</summary>
+    private const double RulerLabelHeight = 15;
+
+    /// <summary>
+    /// The ruler: a labelled figure every quarter of the plot, with a hairline across the chart
+    /// at each one. Without it the chart says which bucket was the biggest and nothing at all
+    /// about how big that was.
+    /// </summary>
+    private void RebuildChartRuler(ElementTheme theme, double chartHeight)
+    {
+        var ticks = ViewModel.ChartTicks;
+        if (ticks.Count == 0) return;
+
+        var line = Palette.ChartGridLine(theme);
+        var text = Palette.TextTertiary(theme);
+
+        foreach (var tick in ticks)
+        {
+            // Fractions are measured up from the baseline, margins down from the top.
+            var y = chartHeight * (1 - tick.Fraction);
+
+            ChartGridLines.Children.Add(new Rectangle
+            {
+                Height = 1,
+                Fill = line,
+                VerticalAlignment = VerticalAlignment.Top,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                // The baseline rule would fall a pixel outside the plot; keep it just inside.
+                Margin = new Thickness(0, Math.Min(y, chartHeight - 1), 0, 0)
+            });
+
+            ChartRuler.Children.Add(new TextBlock
+            {
+                Text = tick.Label,
+                FontSize = 11,
+                Foreground = text,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, y - (RulerLabelHeight / 2), 0, 0)
+            });
+        }
+    }
+
     private void RebuildChart()
     {
         ChartHost.ColumnDefinitions.Clear();
         ChartHost.Children.Clear();
+        ChartGridLines.Children.Clear();
+        ChartRuler.Children.Clear();
 
         var theme = PageRoot.ActualTheme;
         var bars = ViewModel.Chart;
@@ -626,6 +844,9 @@ public sealed partial class MainPage : UserControl
 
         var fill = Palette.Chart(theme);
         var chartHeight = ChartHost.ActualHeight > 0 ? ChartHost.ActualHeight : ChartHost.Height;
+
+        // Drawn first, so the bars sit over the rules rather than under them.
+        RebuildChartRuler(theme, chartHeight);
 
         for (int i = 0; i < bars.Count; i++)
         {
