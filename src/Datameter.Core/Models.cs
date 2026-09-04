@@ -74,4 +74,41 @@ public static class ByteFormat
             _ => $"{bytes} B"
         };
     }
+
+    /// <summary>
+    /// Formats a value in the unit some other figure would choose.
+    ///
+    /// A set of related figures should read in one unit. Left to itself a ruler running to 2 GB
+    /// labels its quarters "1 GB" and then "512 MB", which is correct and reads as a mistake.
+    /// </summary>
+    public static string HumanizeIn(long bytes, long anchor)
+    {
+        double a = anchor;
+        var (size, unit) = a switch
+        {
+            >= TB => (TB, "TB"),
+            >= GB => (GB, "GB"),
+            >= MB => (MB, "MB"),
+            >= KB => (KB, "KB"),
+            _ => (1d, "B")
+        };
+
+        return $"{bytes / size:0.##} {unit}";
+    }
+
+    /// <summary>
+    /// Formats a rate for the live meter. Unlike <see cref="Humanize"/> this stays in KB/s down
+    /// to zero rather than dropping to bytes: the meter updates every second beside a fixed
+    /// layout, and a unit that changes under idle traffic makes the reading jump about.
+    /// </summary>
+    public static string HumanizeRate(long bytesPerSecond)
+    {
+        double b = bytesPerSecond;
+        return b switch
+        {
+            >= GB => $"{b / GB:0.##} GB/s",
+            >= MB => $"{b / MB:0.0} MB/s",
+            _ => $"{b / KB:0.0} KB/s"
+        };
+    }
 }

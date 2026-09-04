@@ -94,6 +94,12 @@ public sealed class AppVm : INotifyPropertyChanged
 /// <summary>One bar of the usage chart.</summary>
 public sealed record BarVm(double Ratio, string Label);
 
+/// <summary>
+/// One rule on the chart's vertical ruler. <paramref name="Fraction"/> is measured from the
+/// baseline, so 1.0 is the top of the plot.
+/// </summary>
+public sealed record ChartTick(double Fraction, string Label);
+
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly UsageStore _store;
@@ -101,16 +107,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>The label the custom-range option carries; also how the UI spots it.</summary>
     public const string CustomRangeLabel = "Custom range";
 
-    public MainViewModel(UsageStore store)
+    public MainViewModel(UsageStore store, Preferences preferences)
     {
         _store = store;
 
         // Sensible starting bounds, so the pickers are never empty when first revealed.
-        _customTo = DateTimeOffset.Now.Date;
-        _customFrom = _customTo.AddDays(-7);
+        _customTo = preferences.CustomTo ?? DateTimeOffset.Now.Date;
+        _customFrom = preferences.CustomFrom ?? _customTo.AddDays(-7);
 
         Periods = new ObservableCollection<PeriodOption>(BuildPeriods());
-        _selectedPeriod = Periods.First(p => p.Label == "Last 30 days");
+
+        // A fresh install opens on Today. After that the period last looked at is restored, so
+        // the app comes back to where it was left rather than to a fixed default. An unknown
+        // label — a period renamed by a later version — falls back rather than throwing.
+        _selectedPeriod =
+            Periods.FirstOrDefault(p => p.Label == preferences.Period)
+            ?? Periods.First(p => p.Label == Preferences.DefaultPeriod);
     }
 
     private DateTimeOffset _customFrom;
@@ -255,6 +267,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private string _axisEnd = "";
     public string AxisEnd { get => _axisEnd; private set => Set(ref _axisEnd, value); }
+
+    /// <summary>Rules for the chart's vertical ruler, top of the plot first.</summary>
+    private IReadOnlyList<ChartTick> _chartTicks = Array.Empty<ChartTick>();
+    public IReadOnlyList<ChartTick> ChartTicks { get => _chartTicks; private set => Set(ref _chartTicks, value); }
+
+    private string _speedUp = "0.0 KB/s";
+    public string SpeedUp { get => _speedUp; private set => Set(ref _speedUp, value); }
+
+    private string _speedDown = "0.0 KB/s";
+    public string SpeedDown { get => _speedDown; private set => Set(ref _speedDown, value); }
+
+    /// <summary>The live reading, which is measured rather than recorded — see SpeedMonitor.</summary>
+    public void SetSpeed(SpeedSample sample)
+    {
+        SpeedUp = ByteFormat.HumanizeRate(sample.SentPerSecond);
+        SpeedDown = ByteFormat.HumanizeRate(sample.ReceivedPerSecond);
+    }
 
     private string _status = "";
     public string Status { get => _status; set => Set(ref _status, value); }
@@ -429,15 +458,74 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (buckets.Count == 0)
         {
             AxisStart = AxisEnd = "";
+            ChartTicks = Array.Empty<ChartTick>();
             return;
         }
 
+        // Bars are drawn against a ruled maximum rather than against the tallest bar. Scaling to
+        // the peak would put the busiest bucket at full height in every period, which reads as
+        // "this is as high as it goes" whatever the actual figure was.
         var peak = Math.Max(buckets.Max(b => b.Value), 1);
-        foreach (var b in buckets)
-            Chart.Add(new BarVm(b.Value / peak, $"{b.Label} · {ByteFormat.Humanize((long)b.Value)}"));
+        var ceiling = NiceCeiling(peak);
 
+        foreach (var b in buckets)
+            Chart.Add(new BarVm(b.Value / ceiling, $"{b.Label} · {ByteFormat.Humanize((long)b.Value)}"));
+
+        ChartTicks = BuildTicks(ceiling);
         AxisStart = buckets[0].Label;
         AxisEnd = buckets[^1].Label;
+    }
+
+    /// <summary>How many parts the ruler divides the plot into.</summary>
+    private const int RulerDivisions = 4;
+
+    /// <summary>
+    /// Rounds a peak up to a figure the ruler can be labelled with.
+    ///
+    /// The rounding happens inside the unit the label will be written in — so a 700 MB peak
+    /// rules to 800 MB rather than to some exact byte count that reads as noise — and the steps
+    /// are chosen to divide cleanly into quarters, because that is how the ruler is subdivided.
+    /// </summary>
+    private static double NiceCeiling(double peak)
+    {
+        if (peak <= 0) return 1;
+
+        var unit = Math.Pow(1024, Math.Floor(Math.Log(peak, 1024)));
+        var scaled = peak / unit;
+
+        var basis = Math.Pow(10, Math.Floor(Math.Log10(scaled)));
+        var normalized = scaled / basis;
+
+        var step = normalized switch
+        {
+            <= 1 => 1d,
+            <= 2 => 2d,
+            <= 4 => 4d,
+            <= 5 => 5d,
+            <= 8 => 8d,
+            _ => 10d
+        };
+
+        return step * basis * unit;
+    }
+
+    private static IReadOnlyList<ChartTick> BuildTicks(double ceiling)
+    {
+        var ticks = new List<ChartTick>(RulerDivisions + 1);
+
+        // Top first, because that is the order they are drawn down the ruler.
+        for (var i = RulerDivisions; i >= 0; i--)
+        {
+            var fraction = i / (double)RulerDivisions;
+            // Every mark is written in the unit the top of the ruler is written in, so the
+            // column reads as one scale rather than changing unit halfway down.
+            var label = i == 0
+                ? "0"
+                : ByteFormat.HumanizeIn((long)Math.Round(ceiling * fraction), (long)Math.Round(ceiling));
+            ticks.Add(new ChartTick(fraction, label));
+        }
+
+        return ticks;
     }
 
     // ---- per-app breakdown ---------------------------------------------------

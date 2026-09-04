@@ -1,0 +1,33 @@
+<Window
+    x:Class="Datameter.App.SpeedWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Everything here is coloured from Palette rather than {ThemeResource}. The meter is its
+        own window, and it has to follow the theme the main window is showing rather than the
+        one the system happens to be on.
+    -->
+    <Border x:Name="Root" BorderThickness="1" CornerRadius="7" Padding="10,5,11,6">
+        <Grid ColumnSpacing="8" RowSpacing="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="UpArrow" Grid.Row="0" Grid.Column="0" Text="&#x2191;"
+                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock x:Name="UpValue" Grid.Row="0" Grid.Column="1" Text="0.0 KB/s"
+                       FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+
+            <TextBlock x:Name="DownArrow" Grid.Row="1" Grid.Column="0" Text="&#x2193;"
+                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock x:Name="DownValue" Grid.Row="1" Grid.Column="1" Text="0.0 KB/s"
+                       FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+    </Border>
+</Window>

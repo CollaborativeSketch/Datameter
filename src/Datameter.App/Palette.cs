@@ -113,6 +113,34 @@ public static class Palette
         };
     }
 
+    // ---- live speed meter ----------------------------------------------------
+
+    /// <summary>
+    /// The floating meter's chip. It sits over other people's windows, so it is a touch further
+    /// from the page ground than a card is: solid rather than translucent, and dark enough in
+    /// dark mode to read against a bright window behind it.
+    /// </summary>
+    public static Brush MeterBackground(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Rgb(0xFA, 0xFA, 0xFA) : Rgb(0x1F, 0x1F, 0x1F));
+
+    public static Brush MeterStroke(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Rgb(0xD6, 0xD6, 0xD6) : Rgb(0x3D, 0x3D, 0x3D));
+
+    /// <summary>
+    /// Direction colours. Kept apart in hue rather than only in shape, so the two rows can be
+    /// told apart at a glance at the size the meter actually runs at.
+    /// </summary>
+    public static Brush Upload(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Rgb(0xE0, 0x6C, 0x00) : Rgb(0xFF, 0xA9, 0x4D));
+
+    public static Brush Download(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Rgb(0x00, 0x8F, 0x69) : Rgb(0x5C, 0xD6, 0xA9));
+
+    /// <summary>Gridlines and the baseline of the usage chart: present, but never the subject.</summary>
+    public static Brush ChartGridLine(ElementTheme theme) =>
+        new SolidColorBrush(IsLight(theme) ? Color.FromArgb(0x26, 0x00, 0x00, 0x00)
+                                           : Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
+
     public static Brush Transparent() => new SolidColorBrush(Colors.Transparent);
 
     private static Color Rgb(byte r, byte g, byte b) => Color.FromArgb(0xFF, r, g, b);

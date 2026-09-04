@@ -17,5 +17,9 @@ public sealed partial class MainWindow : Window
 
         if (MicaController.IsSupported())
             SystemBackdrop = new MicaBackdrop();
+
+        // The floating meter is a window of its own, and an always-on-top window with nothing
+        // behind it would keep the process alive after this one closes.
+        Closed += (_, _) => Page.Shutdown();
     }
 }

@@ -7,6 +7,29 @@ public sealed class Preferences
 {
     /// <summary>"Default" follows the system, matching the Windows personalisation setting.</summary>
     public string Theme { get; set; } = nameof(ElementTheme.Default);
+
+    /// <summary>
+    /// Label of the period last looked at. Null means this install has never chosen one, and a
+    /// first run opens on <see cref="DefaultPeriod"/> rather than the widest span available.
+    /// </summary>
+    public string? Period { get; set; }
+
+    /// <summary>Bounds of the custom range, so choosing it again returns to the same window.</summary>
+    public DateTimeOffset? CustomFrom { get; set; }
+    public DateTimeOffset? CustomTo { get; set; }
+
+    /// <summary>Whether the floating speed meter is on screen.</summary>
+    public bool ShowSpeedMeter { get; set; } = true;
+
+    /// <summary>
+    /// Where the meter was left, in physical screen pixels. Null puts it in its default corner,
+    /// and a position that no longer lands on a connected display is discarded on load.
+    /// </summary>
+    public int? MeterX { get; set; }
+    public int? MeterY { get; set; }
+
+    /// <summary>What a fresh install opens on.</summary>
+    public const string DefaultPeriod = "Today";
 }
 
 /// <summary>Small JSON file beside the usage database. Never throws at the caller.</summary>

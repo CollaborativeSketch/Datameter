@@ -48,6 +48,11 @@ without both a different UI framework and a different source of usage data.
 - Selecting a network narrows every figure to it. Selecting several combines them.
 - A per-application breakdown, equivalent to the one in Settings but summed across all networks
   instead of a single adapter.
+- A live speed readout, and a small floating meter that stays above other windows. Drag it
+  anywhere on screen; right-click it to hide it, or turn it off in settings.
+- A usage chart with a labelled scale down its left edge, so a bar can be read as a figure rather
+  than only compared with its neighbours.
+- Opens on today the first time it is run, and afterwards on whichever period you last looked at.
 - Light, dark, or follow-system appearance, remembered between runs.
 
 ## Local database
@@ -80,6 +85,19 @@ Windows itself provides.
 Networks are identified by profile name. `ConnectionProfile.NetworkAdapter` throws for a profile
 that is not currently available, so an adapter identifier is only known while that network is in
 range and cannot be part of a stable identity.
+
+### Live speed
+
+The speed readout comes from somewhere else entirely. `GetNetworkUsageAsync` reports history in
+whole hours and cannot answer how fast a connection is running right now, so the meter reads the
+byte counters on `NetworkInterface` once a second and differentiates them.
+
+It reads the adapter carrying the internet connection rather than summing every adapter that
+happens to be up, because a VPN or a virtual switch would otherwise be counted twice: the same
+bytes cross the tunnel and the physical card beneath it.
+
+Nothing measured this way is recorded. The counters reset when the adapter does, which makes them
+worth a reading rather than a row in the database.
 
 ## Building
 
