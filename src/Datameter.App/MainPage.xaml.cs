@@ -263,10 +263,21 @@ public sealed partial class MainPage : UserControl
     {
         _settingMeterToggle = true;
         MeterToggle.IsOn = _preferences.ShowSpeedMeter;
-        MeterSizePicker.SelectedIndex = (int)SettingsService.ParseMeterSize(_preferences.MeterSize);
+        SelectMeterSize(SettingsService.ParseMeterSize(_preferences.MeterSize));
         _settingMeterToggle = false;
 
         if (_preferences.ShowSpeedMeter) ShowMeter();
+    }
+
+    /// <summary>
+    /// Selects by tag rather than by index. The tags are what the choice is read back from, so
+    /// matching on them too keeps the picker correct however the items are ordered in markup.
+    /// </summary>
+    private void SelectMeterSize(MeterSizeOption size)
+    {
+        MeterSizePicker.SelectedItem = MeterSizePicker.Items
+            .OfType<FrameworkElement>()
+            .FirstOrDefault(item => (item.Tag as string) == size.ToString());
     }
 
     private void OnMeterSizeChanged(object sender, SelectionChangedEventArgs e)

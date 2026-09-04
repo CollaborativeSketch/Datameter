@@ -426,11 +426,13 @@ public sealed partial class SpeedWindow : Window
         try
         {
             // CreateRoundRectRgn takes the width and height of the corner ellipse, so twice the
-            // radius, and its right and bottom edges are exclusive.
+            // radius. Its right and bottom edges are exclusive, so the far corner is the card's
+            // extent exactly: a pixel beyond that would leave a hairline of unpainted window
+            // showing down the right edge and along the bottom.
             var diameter = (int)Math.Round(CornerRadiusDips * 2 * scale);
             var region = CreateRoundRectRgn(
                 _insetX, _insetY,
-                _insetX + _card.Width + 1, _insetY + _card.Height + 1,
+                _insetX + _card.Width, _insetY + _card.Height,
                 diameter, diameter);
 
             if (region == IntPtr.Zero) return;

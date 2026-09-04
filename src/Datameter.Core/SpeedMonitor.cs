@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
+using System.Text;
 using Windows.Networking.Connectivity;
 
 namespace Datameter.Core;
@@ -94,72 +95,64 @@ public sealed class SpeedMonitor
     {
         var preferred = PreferredAdapterId();
 
-        long sent = 0, received = 0;
-        string? name = null;
-        string? adapterId = null;
-        var matched = false;
-
-        foreach (var nic in SafeInterfaces())
+        if (preferred is not null)
         {
-            var isPreferred = preferred is not null && IdMatches(nic.Id, preferred);
-            if (preferred is not null && !isPreferred) continue;
-
-            if (!isPreferred && !IsCandidate(nic)) continue;
-
-            long nicSent, nicReceived;
-            try
+            foreach (var nic in SafeInterfaces())
             {
-                var stats = nic.GetIPStatistics();
-                nicSent = stats.BytesSent;
-                nicReceived = stats.BytesReceived;
-            }
-            catch
-            {
-                // Some virtual adapters refuse statistics. One of them must not blank the meter.
-                continue;
+                if (!IdMatches(nic.Id, preferred)) continue;
+                if (!TryReadCounters(nic, out var sent, out var received)) break;
+
+                return new Reading(sent, received, nic.Name, nic.Id);
             }
 
-            sent += nicSent;
-            received += nicReceived;
-            name ??= nic.Name;
-            adapterId = matched ? "sum" : nic.Id;
-            matched = true;
-        }
-
-        // The preferred adapter can disappear between resolving it and reading it. Fall back to
-        // the summed candidates rather than reporting a flat zero.
-        if (!matched && preferred is not null)
-        {
+            // The preferred adapter can disappear between resolving it and reading it. Forget
+            // it and fall back rather than reporting a flat zero.
             _preferredId = null;
             _preferredResolvedAt = 0;
-            return ReadAllCandidates();
         }
 
-        return new Reading(sent, received, name, adapterId);
+        return ReadAllCandidates();
     }
 
     private Reading ReadAllCandidates()
     {
         long sent = 0, received = 0;
         string? name = null;
+        var counted = new StringBuilder();
 
         foreach (var nic in SafeInterfaces())
         {
             if (!IsCandidate(nic)) continue;
 
-            try
-            {
-                var stats = nic.GetIPStatistics();
-                sent += stats.BytesSent;
-                received += stats.BytesReceived;
-                name ??= nic.Name;
-            }
-            catch
-            {
-            }
+            // Some virtual adapters refuse statistics. One of them must not blank the meter.
+            if (!TryReadCounters(nic, out var nicSent, out var nicReceived)) continue;
+
+            sent += nicSent;
+            received += nicReceived;
+            name ??= nic.Name;
+            counted.Append(nic.Id).Append(';');
         }
 
-        return new Reading(sent, received, name, "sum");
+        // The identity names every adapter that went into the sum. A single constant would not:
+        // an adapter appearing or disappearing would change the total without invalidating the
+        // baseline, and its whole lifetime byte count would be reported as one second of traffic.
+        return new Reading(sent, received, name, counted.ToString());
+    }
+
+    private static bool TryReadCounters(NetworkInterface nic, out long sent, out long received)
+    {
+        try
+        {
+            var stats = nic.GetIPStatistics();
+            sent = stats.BytesSent;
+            received = stats.BytesReceived;
+            return true;
+        }
+        catch
+        {
+            sent = received = 0;
+            return false;
+        }
     }
 
     private static IEnumerable<NetworkInterface> SafeInterfaces()
