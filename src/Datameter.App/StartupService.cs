@@ -38,6 +38,35 @@ public static class StartupService
         }
     }
 
+    /// <summary>
+    /// Makes the recorded command line point at this copy of Datameter.
+    ///
+    /// The Run value records whichever copy switched it on, and nothing revalidates it. Reinstall
+    /// somewhere else, or move the folder, and Windows keeps launching a path that is no longer
+    /// there: the switch still reads as on and nothing starts, which is the worst of both. It
+    /// also migrates an installer-made Startup shortcut to the Run value.
+    /// </summary>
+    public static void Reconcile()
+    {
+        try
+        {
+            if (!IsEnabled()) return;
+
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe)) return;
+
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+            var recorded = key?.GetValue(ValueName) as string;
+
+            if (string.Equals(recorded, $"\"{exe}\"", StringComparison.OrdinalIgnoreCase)) return;
+
+            Set(true);
+        }
+        catch
+        {
+        }
+    }
+
     /// <summary>Returns whether the change took, so the switch can be put back if it did not.</summary>
     public static bool Set(bool enabled)
     {
