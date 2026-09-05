@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="Datameter.App.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -34,7 +34,13 @@
             </StackPanel>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Padding="30,10,30,30" VerticalScrollBarVisibility="Auto">
+        <!--
+            Two views, one at a time. Settings outgrew a flyout, and a second window would be a
+            second thing to manage; swapping the page keeps the app a single window with no
+            navigation stack to get lost in.
+        -->
+        <Grid Grid.Row="1">
+        <ScrollViewer x:Name="MainView" Padding="30,10,30,30" VerticalScrollBarVisibility="Auto">
             <StackPanel MaxWidth="880" HorizontalAlignment="Stretch">
 
                 <!-- Heading, period picker, settings -->
@@ -55,61 +61,8 @@
                               ToolTipService.ToolTip="Time period" />
 
                     <Button Grid.Column="2" Width="36" Height="34" Padding="0" CornerRadius="6"
-                            ToolTipService.ToolTip="Settings">
+                            Click="OnOpenSettings" ToolTipService.ToolTip="Settings">
                         <FontIcon Glyph="&#xE713;" FontSize="15" />
-                        <Button.Flyout>
-                            <Flyout Placement="BottomEdgeAlignedRight">
-                                <StackPanel Width="230" Spacing="4">
-                                    <TextBlock Text="Appearance" FontSize="14" FontWeight="SemiBold"
-                                               Margin="0,0,0,6" />
-                                    <RadioButton x:Name="ThemeLight" Content="Light" GroupName="Theme"
-                                                 Checked="OnThemeChecked" Tag="Light" />
-                                    <RadioButton x:Name="ThemeDark" Content="Dark" GroupName="Theme"
-                                                 Checked="OnThemeChecked" Tag="Dark" />
-                                    <RadioButton x:Name="ThemeSystem" Content="Use system setting"
-                                                 GroupName="Theme" Checked="OnThemeChecked" Tag="Default" />
-
-                                    <TextBlock Text="Speed meter" FontSize="14" FontWeight="SemiBold"
-                                               Margin="0,12,0,0" />
-                                    <ToggleSwitch x:Name="MeterToggle" OnContent="Showing" OffContent="Hidden"
-                                                  Margin="0,-4,0,0" Toggled="OnMeterToggled" />
-                                    <ComboBox x:Name="MeterSizePicker" Header="Size" MinWidth="140"
-                                              Margin="0,2,0,0" SelectionChanged="OnMeterSizeChanged">
-                                        <ComboBoxItem Content="Small" Tag="Small" />
-                                        <ComboBoxItem Content="Medium" Tag="Medium" />
-                                        <ComboBoxItem Content="Large" Tag="Large" />
-                                    </ComboBox>
-                                    <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen and it snaps to the edge; right-click it to hide."
-                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,8,0,0"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-
-                                    <TextBlock Text="Records are kept in your local Datameter database and survive Windows discarding its own history."
-                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,10,0,0"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-
-                                    <Border Height="1" Margin="0,14,0,10"
-                                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <Image Source="ms-appx:///Assets/logo.png" Width="32" Height="32"
-                                               VerticalAlignment="Top" />
-                                        <StackPanel>
-                                            <TextBlock x:Name="AboutName" Text="Datameter"
-                                                       FontSize="14" FontWeight="SemiBold" />
-                                            <TextBlock x:Name="VersionText" Text="Version" FontSize="11.5"
-                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                            <TextBlock Text="Built by Alexander Akinbiyi" FontSize="11.5"
-                                                       Margin="0,4,0,0"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        </StackPanel>
-                                    </StackPanel>
-
-                                    <HyperlinkButton Content="View on GitHub" Padding="0,4"
-                                                     FontSize="12" Margin="0,4,0,0"
-                                                     NavigateUri="https://github.com/CollaborativeSketch/Datameter" />
-                                </StackPanel>
-                            </Flyout>
-                        </Button.Flyout>
                     </Button>
                 </Grid>
 
@@ -297,15 +250,19 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0"
-                              Height="150" MinWidth="40" />
+                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0" Height="225" />
 
-                        <Grid Grid.Row="0" Grid.Column="1" Height="150">
-                            <Grid x:Name="ChartGridLines" Height="150" />
-                            <Grid x:Name="ChartHost" Height="150" />
+                        <!--
+                            The plot clears the ruler by the column spacing on its left, so it
+                            takes the same margin on its right and sits evenly inside the card
+                            rather than running up against one edge and not the other.
+                        -->
+                        <Grid Grid.Row="0" Grid.Column="1" Height="225" Margin="0,0,10,0">
+                            <Grid x:Name="ChartGridLines" Height="225" />
+                            <Grid x:Name="ChartHost" Height="225" />
                         </Grid>
 
-                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,9,0,0">
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,9,10,0">
                             <TextBlock Text="{x:Bind ViewModel.AxisStart, Mode=OneWay}" FontSize="11"
                                        HorizontalAlignment="Left"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
@@ -318,5 +275,113 @@
 
             </StackPanel>
         </ScrollViewer>
+
+        <!-- Settings. The same controls as the old flyout, given room to breathe. -->
+        <ScrollViewer x:Name="SettingsView" Padding="30,10,30,30" Visibility="Collapsed"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
+
+                <Grid Margin="0,10,0,20" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Width="36" Height="34" Padding="0" CornerRadius="6"
+                            Click="OnCloseSettings" ToolTipService.ToolTip="Back">
+                        <FontIcon Glyph="&#xE72B;" FontSize="15" />
+                    </Button>
+                    <TextBlock Grid.Column="1" Text="Settings" VerticalAlignment="Center"
+                               FontSize="28" FontWeight="SemiBold" />
+                </Grid>
+
+                <Border Padding="18,16" Margin="0,0,0,12" CornerRadius="6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Appearance" FontSize="15" FontWeight="SemiBold"
+                                   Margin="0,0,0,4" />
+                        <RadioButton x:Name="ThemeLight" Content="Light" GroupName="Theme"
+                                     Checked="OnThemeChecked" Tag="Light" />
+                        <RadioButton x:Name="ThemeDark" Content="Dark" GroupName="Theme"
+                                     Checked="OnThemeChecked" Tag="Dark" />
+                        <RadioButton x:Name="ThemeSystem" Content="Use system setting"
+                                     GroupName="Theme" Checked="OnThemeChecked" Tag="Default" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="18,16" Margin="0,0,0,12" CornerRadius="6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Speed meter" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen; right-click it to hide, or to put it back in its default corner."
+                                   TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <ToggleSwitch x:Name="MeterToggle" OnContent="Showing" OffContent="Hidden"
+                                      Toggled="OnMeterToggled" />
+                        <ComboBox x:Name="MeterSizePicker" Header="Size" MinWidth="200"
+                                  SelectionChanged="OnMeterSizeChanged">
+                            <ComboBoxItem Content="Small" Tag="Small" />
+                            <ComboBoxItem Content="Medium" Tag="Medium" />
+                            <ComboBoxItem Content="Large" Tag="Large" />
+                        </ComboBox>
+                        <ComboBox x:Name="SpeedUnitPicker" Header="Units" MinWidth="200"
+                                  Margin="0,8,0,0" SelectionChanged="OnSpeedUnitChanged">
+                            <ComboBoxItem Content="Kilobits per second" Tag="Kilobits" />
+                            <ComboBoxItem Content="Kilobytes per second" Tag="Kilobytes" />
+                            <ComboBoxItem Content="Kibibytes per second" Tag="Kibibytes" />
+                        </ComboBox>
+                        <TextBlock Text="Connections are sold in bits, so kbps matches the figure your provider quotes. A kilobyte is 1000 bytes; a kibibyte is 1024, which is how Windows counts."
+                                   TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="18,16" Margin="0,0,0,12" CornerRadius="6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Running" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="Datameter only records usage while it is running. Left on, closing the window keeps it in the notification area, where you can reopen or quit it."
+                                   TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <ToggleSwitch x:Name="BackgroundToggle"
+                                      OnContent="Keep running when the window is closed"
+                                      OffContent="Quit when the window is closed"
+                                      Toggled="OnRunInBackgroundToggled" />
+                        <ToggleSwitch x:Name="StartupToggle" OnContent="Starts with Windows"
+                                      OffContent="Does not start with Windows" Margin="0,4,0,0"
+                                      Toggled="OnStartWithWindowsToggled" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="18,16" Margin="0,0,0,12" CornerRadius="6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Image Source="ms-appx:///Assets/logo.png" Width="40" Height="40"
+                                   VerticalAlignment="Top" />
+                            <StackPanel>
+                                <TextBlock x:Name="AboutName" Text="Datameter"
+                                           FontSize="15" FontWeight="SemiBold" />
+                                <TextBlock x:Name="VersionText" Text="Version" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Text="Built by Alexander Akinbiyi" FontSize="12"
+                                           Margin="0,4,0,0"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Text="Records are kept in your local Datameter database and survive Windows discarding its own history."
+                                   TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <HyperlinkButton Content="View on GitHub" Padding="0,4" FontSize="13"
+                                         NavigateUri="https://github.com/CollaborativeSketch/Datameter" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

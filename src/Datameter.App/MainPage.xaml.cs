@@ -34,11 +34,15 @@ public sealed partial class MainPage : UserControl
     /// <summary>The floating meter, when it is on screen.</summary>
     private SpeedWindow? _meter;
 
+    /// <summary>The notification-area icon, present only while running in the background is on.</summary>
+    private TrayIcon? _tray;
+
     private CancellationTokenSource? _appQuery;
     private bool _syncing;
     private bool _settingTheme;
     private bool _settingDates;
-    private bool _settingMeterToggle;
+    /// <summary>Suppresses the flyout's Toggled and SelectionChanged handlers while state is reflected into them.</summary>
+    private bool _settingToggles;
 
     public MainViewModel ViewModel { get; }
 
@@ -126,6 +130,7 @@ public sealed partial class MainPage : UserControl
                 ApplySavedTheme();
                 SyncDatePickers();
                 ApplyMeterPreference();
+                ApplyBackgroundPreference();
                 await StartupAsync();
             }
             catch (Exception ex)
@@ -237,6 +242,34 @@ public sealed partial class MainPage : UserControl
 
     private void OnClearNetworkFilter(object sender, RoutedEventArgs e) => ViewModel.ClearNetworkFilter();
 
+    // ---- settings page -------------------------------------------------------
+
+    /// <summary>
+    /// Settings replace the page rather than opening beside it. They outgrew a flyout, and a
+    /// window of their own would be a second thing to find and close; this keeps Datameter one
+    /// window with nothing to navigate.
+    /// </summary>
+    private void OnOpenSettings(object sender, RoutedEventArgs e)
+    {
+        MainView.Visibility = Visibility.Collapsed;
+        SettingsView.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseSettings(object sender, RoutedEventArgs e)
+    {
+        SettingsView.Visibility = Visibility.Collapsed;
+        MainView.Visibility = Visibility.Visible;
+
+        // The page it returns to is drawn in code, and its sizes come from a layout pass that
+        // did not happen while it was collapsed.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            RebuildContributionBar();
+            RebuildNetworkChips();
+            RebuildChart();
+        });
+    }
+
     /// <summary>
     /// Records the period on screen, so the next launch opens on it. The custom bounds travel
     /// with it, or restoring "Custom range" would land on a window the user never chose.
@@ -253,18 +286,27 @@ public sealed partial class MainPage : UserControl
 
     private void OnSpeedUpdated(object? sender, SpeedSample sample)
     {
-        ViewModel.SetSpeed(sample);
+        var unit = SettingsService.ParseSpeedUnit(_preferences.SpeedUnit);
+
+        ViewModel.SetSpeed(sample, unit);
         _meter?.Show(sample);
+
+        // With the window closed to the notification area, this is the only reading on screen.
+        _tray?.SetTooltip(
+            $"{AppInfo.DisplayName}\n" +
+            $"Up {ByteFormat.HumanizeRate(sample.SentPerSecond, unit)}    " +
+            $"Down {ByteFormat.HumanizeRate(sample.ReceivedPerSecond, unit)}");
     }
 
     // ---- floating meter ------------------------------------------------------
 
     private void ApplyMeterPreference()
     {
-        _settingMeterToggle = true;
+        _settingToggles = true;
         MeterToggle.IsOn = _preferences.ShowSpeedMeter;
         SelectMeterSize(SettingsService.ParseMeterSize(_preferences.MeterSize));
-        _settingMeterToggle = false;
+        SelectSpeedUnit(SettingsService.ParseSpeedUnit(_preferences.SpeedUnit));
+        _settingToggles = false;
 
         if (_preferences.ShowSpeedMeter) ShowMeter();
     }
@@ -280,9 +322,31 @@ public sealed partial class MainPage : UserControl
             .FirstOrDefault(item => (item.Tag as string) == size.ToString());
     }
 
+    private void SelectSpeedUnit(SpeedUnit unit)
+    {
+        SpeedUnitPicker.SelectedItem = SpeedUnitPicker.Items
+            .OfType<FrameworkElement>()
+            .FirstOrDefault(item => (item.Tag as string) == unit.ToString());
+    }
+
+    private void OnSpeedUnitChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settingToggles) return;
+
+        var unit = SettingsService.ParseSpeedUnit(
+            (SpeedUnitPicker.SelectedItem as FrameworkElement)?.Tag as string);
+
+        _preferences.SpeedUnit = unit.ToString();
+        SettingsService.Save(_preferences);
+
+        // Redrawn at once rather than a second from now, when the next sample lands.
+        _meter?.SetUnit(unit);
+        ViewModel.SetSpeed(App.Speed.Latest, unit);
+    }
+
     private void OnMeterSizeChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_settingMeterToggle) return;
+        if (_settingToggles) return;
 
         var size = SettingsService.ParseMeterSize(
             (MeterSizePicker.SelectedItem as FrameworkElement)?.Tag as string);
@@ -294,7 +358,7 @@ public sealed partial class MainPage : UserControl
 
     private void OnMeterToggled(object sender, RoutedEventArgs e)
     {
-        if (_settingMeterToggle) return;
+        if (_settingToggles) return;
         SetMeterVisible(MeterToggle.IsOn);
     }
 
@@ -307,9 +371,9 @@ public sealed partial class MainPage : UserControl
         _preferences.ShowSpeedMeter = visible;
         SettingsService.Save(_preferences);
 
-        _settingMeterToggle = true;
+        _settingToggles = true;
         MeterToggle.IsOn = visible;
-        _settingMeterToggle = false;
+        _settingToggles = false;
 
         if (visible) ShowMeter();
         else HideMeter();
@@ -325,7 +389,9 @@ public sealed partial class MainPage : UserControl
 
         var meter = new SpeedWindow();
         meter.HideRequested += (_, _) => SetMeterVisible(false);
-        meter.ShowMainRequested += (_, _) => App.PrimaryWindow?.Activate();
+        // Show rather than Activate: the window may be closed to the notification area, and
+        // activating a hidden window leaves it hidden.
+        meter.ShowMainRequested += (_, _) => App.ShowPrimaryWindow();
         meter.PositionChanged += (_, at) =>
         {
             _preferences.MeterX = at.X;
@@ -336,14 +402,16 @@ public sealed partial class MainPage : UserControl
         _meter = meter;
 
         meter.SetSize(SettingsService.ParseMeterSize(_preferences.MeterSize));
+        meter.SetUnit(SettingsService.ParseSpeedUnit(_preferences.SpeedUnit));
         meter.ApplyTheme(PageRoot.ActualTheme);
         meter.Show(App.Speed.Latest);
         meter.Activate();
         meter.Place(_preferences.MeterX, _preferences.MeterY);
 
         // Activating the meter takes focus. Hand it straight back, so showing the meter never
-        // pulls the user out of what they were reading.
-        App.PrimaryWindow?.Activate();
+        // pulls the user out of what they were reading — but only if the window is on screen,
+        // or showing the meter would drag a backgrounded app into view.
+        if (App.PrimaryWindow?.AppWindow.IsVisible == true) App.PrimaryWindow.Activate();
     }
 
     private void HideMeter()
@@ -353,9 +421,105 @@ public sealed partial class MainPage : UserControl
         meter?.CloseQuietly();
     }
 
+    // ---- running in the background -------------------------------------------
+
     /// <summary>
-    /// Called when the main window closes. The meter is a window in its own right, so without
-    /// this the process would outlive the window the user actually closed.
+    /// Whether closing the window should leave Datameter running.
+    ///
+    /// The preference alone is not enough: if the notification area refused the icon there is
+    /// nothing left to bring the window back, and hiding it would strand the app where only
+    /// Task Manager could reach it.
+    /// </summary>
+    public bool RunInBackground => _preferences.RunInBackground && _tray?.IsVisible == true;
+
+    private void ApplyBackgroundPreference()
+    {
+        _settingToggles = true;
+        BackgroundToggle.IsOn = _preferences.RunInBackground;
+        StartupToggle.IsOn = StartupService.IsEnabled();
+        _settingToggles = false;
+
+        if (_preferences.RunInBackground) ShowTray();
+    }
+
+    private void OnRunInBackgroundToggled(object sender, RoutedEventArgs e)
+    {
+        if (_settingToggles) return;
+
+        _preferences.RunInBackground = BackgroundToggle.IsOn;
+        SettingsService.Save(_preferences);
+
+        if (BackgroundToggle.IsOn) ShowTray();
+        else HideTray();
+    }
+
+    private void OnStartWithWindowsToggled(object sender, RoutedEventArgs e)
+    {
+        if (_settingToggles) return;
+        if (StartupService.Set(StartupToggle.IsOn)) return;
+
+        // Windows refused the change. Show what is true rather than what was asked for.
+        _settingToggles = true;
+        StartupToggle.IsOn = StartupService.IsEnabled();
+        _settingToggles = false;
+    }
+
+    private void ShowTray()
+    {
+        if (_tray is not null) return;
+
+        var tray = new TrayIcon(AppInfo.DisplayName);
+        if (!tray.IsVisible)
+        {
+            // Explorer can refuse an icon while it is restarting. Better to keep closing the
+            // window as quitting than to hide it behind an icon that is not there.
+            tray.Dispose();
+            return;
+        }
+
+        tray.Opened += (_, _) => App.ShowPrimaryWindow();
+        tray.BuildMenu = BuildTrayMenu;
+        _tray = tray;
+    }
+
+    private void HideTray()
+    {
+        var tray = _tray;
+        _tray = null;
+        tray?.Dispose();
+    }
+
+    /// <summary>
+    /// Built when the menu opens rather than once, so the meter entry says what it will do
+    /// rather than what it would have done when the icon was created.
+    ///
+    /// Every action is queued rather than run where it is chosen. The choice arrives inside the
+    /// tray window's own message handling, and closing windows — which is what two of these do
+    /// — from inside a window procedure invites reentrancy that is hard to reason about.
+    /// </summary>
+    private IReadOnlyList<TrayMenuItem> BuildTrayMenu() => new[]
+    {
+        new TrayMenuItem($"Open {AppInfo.DisplayName}", () => Later(App.ShowPrimaryWindow)),
+        new TrayMenuItem(
+            _meter is null ? "Show speed meter" : "Hide speed meter",
+            () => Later(() => SetMeterVisible(_meter is null))),
+        new TrayMenuItem("Reset meter position", () => Later(ResetMeterPosition)),
+        TrayMenuItem.Separator,
+        new TrayMenuItem($"Exit {AppInfo.DisplayName}", () => Later(App.Quit)),
+    };
+
+    private void Later(Action action) => DispatcherQueue.TryEnqueue(() => action());
+
+    /// <summary>Brings the meter back to its default corner, showing it first if it is hidden.</summary>
+    private void ResetMeterPosition()
+    {
+        if (_meter is null) SetMeterVisible(true);
+        _meter?.ResetPosition();
+    }
+
+    /// <summary>
+    /// Called when the main window really closes. The meter and the tray icon are separate
+    /// windows, and either would outlive the window the user actually closed.
     /// </summary>
     public void Shutdown()
     {
@@ -363,6 +527,7 @@ public sealed partial class MainPage : UserControl
         App.Speed.Updated -= OnSpeedUpdated;
         _themeWatcher.Dispose();
         HideMeter();
+        HideTray();
     }
 
     // ---- startup and sync ----------------------------------------------------

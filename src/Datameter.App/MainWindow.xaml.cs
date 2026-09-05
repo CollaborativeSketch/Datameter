@@ -19,8 +19,19 @@ public sealed partial class MainWindow : Window
         if (MicaController.IsSupported())
             SystemBackdrop = new MicaBackdrop();
 
-        // The floating meter is a window of its own, and an always-on-top window with nothing
-        // behind it would keep the process alive after this one closes.
+        // Closing the window normally leaves Datameter running in the notification area: the
+        // history it accumulates past Windows' own retention is only collected while it runs.
+        // Quitting from the tray sets App.IsExiting, and that is what makes a close a close.
+        AppWindow.Closing += (_, args) =>
+        {
+            if (App.IsExiting || !Page.RunInBackground) return;
+
+            args.Cancel = true;
+            AppWindow.Hide();
+        };
+
+        // The floating meter and the tray icon are separate windows, and either would keep the
+        // process alive after this one has really closed.
         Closed += (_, _) => Page.Shutdown();
     }
 }

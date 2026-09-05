@@ -57,6 +57,23 @@ public sealed record UsageSummary(
         Networks.Where(n => n.Total > 0).OrderByDescending(n => n.Total).ToList();
 }
 
+/// <summary>
+/// How a live rate is written. Networks are advertised in bits and measured in bytes, and
+/// "kilobyte" means two different things depending on who is counting, so the choice is the
+/// user's and the unit is always named on screen.
+/// </summary>
+public enum SpeedUnit
+{
+    /// <summary>Bits, decimal. What connections are sold in, so this is the default.</summary>
+    Kilobits,
+
+    /// <summary>Bytes, decimal: 1000 bytes to the kilobyte.</summary>
+    Kilobytes,
+
+    /// <summary>Bytes, binary: 1024 bytes to the kibibyte, as Windows counts.</summary>
+    Kibibytes
+}
+
 public static class ByteFormat
 {
     private const double KB = 1024d, MB = KB * 1024, GB = MB * 1024, TB = GB * 1024;
@@ -97,18 +114,33 @@ public static class ByteFormat
     }
 
     /// <summary>
-    /// Formats a rate for the live meter. Unlike <see cref="Humanize"/> this stays in KB/s down
-    /// to zero rather than dropping to bytes: the meter updates every second beside a fixed
-    /// layout, and a unit that changes under idle traffic makes the reading jump about.
+    /// Formats a rate for the live meter.
+    ///
+    /// Unlike <see cref="Humanize"/> this stays in its smallest unit down to zero rather than
+    /// dropping to bytes: the meter updates every second beside a fixed layout, and a unit that
+    /// changes under idle traffic makes the reading jump about.
     /// </summary>
-    public static string HumanizeRate(long bytesPerSecond)
+    public static string HumanizeRate(long bytesPerSecond, SpeedUnit unit)
     {
-        double b = bytesPerSecond;
-        return b switch
+        // Bits are what connections are sold in, so a "100 Mb" line reads as 100 Mbps here.
+        // Bytes decimal and bytes binary differ by 2.4% at this scale and are both in use, so
+        // which one is showing is named rather than assumed.
+        var (step, small, medium, large) = unit switch
         {
-            >= GB => $"{b / GB:0.##} GB/s",
-            >= MB => $"{b / MB:0.0} MB/s",
-            _ => $"{b / KB:0.0} KB/s"
+            SpeedUnit.Kilobytes => (1000d, "KB/s", "MB/s", "GB/s"),
+            SpeedUnit.Kibibytes => (1024d, "KiB/s", "MiB/s", "GiB/s"),
+            _ => (1000d, "kbps", "Mbps", "Gbps"),
         };
+
+        var value = unit == SpeedUnit.Kilobits ? bytesPerSecond * 8d : bytesPerSecond;
+
+        var perKilo = step;
+        var perMega = step * step;
+        var perGiga = perMega * step;
+
+        if (value >= perGiga) return $"{value / perGiga:0.##} {large}";
+        if (value >= perMega) return $"{value / perMega:0.0} {medium}";
+
+        return $"{value / perKilo:0.0} {small}";
     }
 }

@@ -4,16 +4,16 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        A card, drawn to the same recipe as the tiles on the page: the card fill, the card
-        stroke, a 6px radius and Fluent icon glyphs. Colours come from Palette rather than
-        {ThemeResource} because this is a window of its own and has to follow the theme the
-        main window is showing, not the one the system happens to be on.
+        A plain dark slab: no corner radius, no stroke. It sits over other people's windows
+        rather than on the page, so it is not drawn as one of the page's cards.
 
-        Sizes are set from code so that one setting moves the card, the text and the glyphs
+        Colours come from Palette rather than {ThemeResource} because this is a window of its
+        own, and its ground is dark whichever theme the app is showing.
+
+        Sizes are set from code so that one setting moves the slab, the text and the glyphs
         together. Nothing here is sized in the markup.
     -->
-    <Border x:Name="Root" BorderThickness="1" CornerRadius="6"
-            HorizontalAlignment="Left" VerticalAlignment="Top">
+    <Border x:Name="Root" HorizontalAlignment="Left" VerticalAlignment="Top">
         <Grid x:Name="Layout">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -27,13 +27,13 @@
             <FontIcon x:Name="UpArrow" Grid.Row="0" Grid.Column="0" Glyph="&#xE74A;"
                       VerticalAlignment="Center" />
             <TextBlock x:Name="UpValue" Grid.Row="0" Grid.Column="1" Text="0.0 KB/s"
-                       FontWeight="SemiBold" HorizontalAlignment="Right"
+                       FontWeight="SemiBold" HorizontalAlignment="Left"
                        VerticalAlignment="Center" />
 
             <FontIcon x:Name="DownArrow" Grid.Row="1" Grid.Column="0" Glyph="&#xE74B;"
                       VerticalAlignment="Center" />
             <TextBlock x:Name="DownValue" Grid.Row="1" Grid.Column="1" Text="0.0 KB/s"
-                       FontWeight="SemiBold" HorizontalAlignment="Right"
+                       FontWeight="SemiBold" HorizontalAlignment="Left"
                        VerticalAlignment="Center" />
         </Grid>
     </Border>
