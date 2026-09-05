@@ -84,7 +84,14 @@
   -->
   <Target Name="PublishXamlAssets" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>
-      <_DatameterXamlAsset Include="$(OutputPath)**\*.xbf" />
+      <!--
+        The publish directory sits inside the output directory, so an unqualified glob sweeps
+        the *previous* publish's copies back in. Publishing then empties that directory and the
+        copy fails with MSB3030, which only happens on a second publish into a tree that was not
+        cleaned first — that is, on every release build after the first.
+      -->
+      <_DatameterXamlAsset Include="$(OutputPath)**\*.xbf"
+                           Exclude="$(PublishDir)**\*.xbf;$(OutputPath)publish\**\*.xbf" />
       <_DatameterXamlAsset Include="$(OutputPath)$(AssemblyName).pri" />
 
       <ResolvedFileToPublish Include="@(_DatameterXamlAsset)">
