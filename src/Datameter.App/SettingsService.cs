@@ -39,6 +39,16 @@ public sealed class Preferences
     /// <summary>Size of the floating meter.</summary>
     public string MeterSize { get; set; } = nameof(MeterSizeOption.Medium);
 
+    /// <summary>
+    /// Whether closing the window leaves Datameter running in the notification area. On by
+    /// default: the app's whole purpose is to accumulate history past what Windows keeps, which
+    /// it cannot do while it is not running.
+    ///
+    /// Whether Windows starts it at sign-in is not kept here — see StartupService. Windows owns
+    /// that state, and asking it is the only way to be sure.
+    /// </summary>
+    public bool RunInBackground { get; set; } = true;
+
     /// <summary>What a fresh install opens on.</summary>
     public const string DefaultPeriod = "Today";
 }

@@ -54,8 +54,33 @@ public partial class App : Application
     /// </summary>
     public static SpeedService Speed { get; } = new();
 
-    /// <summary>The main window, so the meter can bring it forward.</summary>
+    /// <summary>The main window, so the meter and the tray icon can bring it forward.</summary>
     public static Window? PrimaryWindow { get; private set; }
+
+    /// <summary>
+    /// Set when the user has actually asked to quit, from the notification area. Closing the
+    /// window otherwise only hides it, so this is what tells the window the difference.
+    /// </summary>
+    public static bool IsExiting { get; private set; }
+
+    /// <summary>Brings the window back, whether it is behind something or hidden entirely.</summary>
+    public static void ShowPrimaryWindow()
+    {
+        if (PrimaryWindow is not { } window) return;
+
+        window.AppWindow.Show();
+        window.Activate();
+    }
+
+    /// <summary>
+    /// Quits for real, rather than closing the window to the notification area. Named Quit
+    /// rather than Exit because Application.Exit already means something slightly different.
+    /// </summary>
+    public static void Quit()
+    {
+        IsExiting = true;
+        PrimaryWindow?.Close();
+    }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {

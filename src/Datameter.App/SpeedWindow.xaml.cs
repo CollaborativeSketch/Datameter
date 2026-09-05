@@ -37,25 +37,16 @@ public sealed partial class SpeedWindow : Window
 
     private static Metrics MetricsFor(MeterSizeOption size) => size switch
     {
-        // Widths are set by the longest reading the meter can show, "999.9 KB/s", plus the
-        // glyph, the gap and the padding. Any narrower and a busy moment clips the figure.
-        MeterSizeOption.Small => new(94, 42, 10.5, 11, new Thickness(8, 3, 9, 3), 4),
-        MeterSizeOption.Large => new(138, 66, 15, 16, new Thickness(12, 6, 13, 6), 7),
-        _ => new(110, 52, 12, 13, new Thickness(10, 4, 11, 4), 5),
+        // The reading sits immediately after its glyph rather than across the slab, so the gap
+        // is the column gap and nothing more. Widths are the longest reading the meter can
+        // show, "999.9 KB/s", plus the glyph, that gap and the padding.
+        MeterSizeOption.Small => new(86, 40, 10.5, 11, new Thickness(7, 2, 8, 2), 3),
+        MeterSizeOption.Large => new(126, 62, 15, 16, new Thickness(10, 5, 11, 5), 4),
+        _ => new(100, 48, 12, 13, new Thickness(8, 3, 9, 3), 3),
     };
-
-    /// <summary>Matches the corner radius the cards on the page are drawn with.</summary>
-    private const double CornerRadiusDips = 6;
 
     /// <summary>Gap from the working area's corner when no saved position applies.</summary>
     private const int DefaultMargin = 16;
-
-    /// <summary>
-    /// How close an edge has to come, in DIPs, before the card is taken to be aimed at it.
-    /// Wide enough that a rough throw at the corner lands flush, narrow enough that a meter
-    /// parked deliberately near an edge is left where it was put.
-    /// </summary>
-    private const double SnapDistanceDips = 20;
 
     private readonly IntPtr _hwnd;
     private MeterSizeOption _size = MeterSizeOption.Medium;
@@ -133,19 +124,14 @@ public sealed partial class SpeedWindow : Window
     {
         Root.RequestedTheme = theme;
 
-        // ActualTheme is what Palette keys on, and it only settles once the requested theme has
-        // been resolved against the tree above it.
-        var resolved = theme == ElementTheme.Default ? Root.ActualTheme : theme;
+        // The slab's ground is dark whatever the app is showing, so its contents are coloured
+        // for a dark ground rather than for the current theme.
+        Root.Background = Palette.MeterBackground();
 
-        // The same card recipe as the network tiles: card fill, card stroke, 6px radius. The
-        // meter reads as part of the app rather than as a widget borrowed from somewhere else.
-        Root.Background = Palette.CardBackground(resolved);
-        Root.BorderBrush = Palette.CardStroke(resolved);
-
-        UpArrow.Foreground = Palette.Upload(resolved);
-        DownArrow.Foreground = Palette.Download(resolved);
-        UpValue.Foreground = Palette.TextPrimary(resolved);
-        DownValue.Foreground = Palette.TextPrimary(resolved);
+        UpArrow.Foreground = Palette.Upload(ElementTheme.Dark);
+        DownArrow.Foreground = Palette.Download(ElementTheme.Dark);
+        UpValue.Foreground = Palette.MeterText();
+        DownValue.Foreground = Palette.MeterText();
     }
 
     /// <summary>Resizes the card, its text and its glyphs together.</summary>
@@ -158,8 +144,8 @@ public sealed partial class SpeedWindow : Window
         var before = CardPosition;
         ApplyMetrics();
 
-        // A card that just grew can overhang the edge it was resting against.
-        MoveCardTo(SnapToEdges(before), announce: _placed);
+        // Resizing must not shift the slab: it keeps the corner it was left at.
+        MoveCardTo(before, announce: _placed);
     }
 
     public void Show(SpeedSample sample)
@@ -224,38 +210,6 @@ public sealed partial class SpeedWindow : Window
         return DisplayArea.GetFromPoint(centre, DisplayAreaFallback.None) is not null;
     }
 
-    /// <summary>
-    /// Pulls the card flush against any working-area edge it came to rest near, and keeps it on
-    /// screen either way. The working area rather than the screen, so it settles above the
-    /// taskbar rather than behind it.
-    /// </summary>
-    private PointInt32 SnapToEdges(PointInt32 card)
-    {
-        var work = WorkAreaFor(card);
-        var scale = Root.XamlRoot?.RasterizationScale ?? 1;
-        var threshold = (int)Math.Round(SnapDistanceDips * scale);
-
-        var left = work.X;
-        var top = work.Y;
-        var right = work.X + work.Width - _card.Width;
-        var bottom = work.Y + work.Height - _card.Height;
-
-        var x = card.X;
-        var y = card.Y;
-
-        if (Math.Abs(x - left) <= threshold) x = left;
-        else if (Math.Abs(x - right) <= threshold) x = right;
-
-        if (Math.Abs(y - top) <= threshold) y = top;
-        else if (Math.Abs(y - bottom) <= threshold) y = bottom;
-
-        // Whatever happens, the card stays reachable.
-        x = Math.Clamp(x, left, Math.Max(left, right));
-        y = Math.Clamp(y, top, Math.Max(top, bottom));
-
-        return new PointInt32(x, y);
-    }
-
     /// <summary>The working area of the display the card's centre is on.</summary>
     private RectInt32 WorkAreaFor(PointInt32 card)
     {
@@ -303,7 +257,7 @@ public sealed partial class SpeedWindow : Window
         _insetX = frame.Left;
         _insetY = frame.Top;
 
-        ClipToCard(scale);
+        ClipToCard();
     }
 
     /// <summary>
@@ -379,9 +333,8 @@ public sealed partial class SpeedWindow : Window
         // Moving between monitors can change the scale factor under us.
         ApplyMetrics();
 
-        // Snapping happens on release rather than during the drag, so the card follows the
-        // cursor honestly and settles once, instead of jumping in and out of the edge.
-        MoveCardTo(SnapToEdges(CardPosition), announce: true);
+        // Wherever it was let go is where it stays.
+        PositionChanged?.Invoke(this, CardPosition);
     }
 
     // ---- menu ----------------------------------------------------------------
@@ -415,25 +368,21 @@ public sealed partial class SpeedWindow : Window
     // ---- native --------------------------------------------------------------
 
     /// <summary>
-    /// Clips the window to the card's rounded outline, at the card's place inside it.
+    /// Clips the window to the slab, at the slab's place inside it.
     ///
-    /// This is what takes the frame out of view and what makes the small size actually small.
-    /// It also supplies the rounded corners, since DWM only rounds windows that are showing a
-    /// frame and this one is not.
+    /// This is what takes the window frame out of view and what makes the small size actually
+    /// small. The slab has square corners, so a plain rectangle is all that is wanted here.
     /// </summary>
-    private void ClipToCard(double scale)
+    private void ClipToCard()
     {
         try
         {
-            // CreateRoundRectRgn takes the width and height of the corner ellipse, so twice the
-            // radius. Its right and bottom edges are exclusive, so the far corner is the card's
-            // extent exactly: a pixel beyond that would leave a hairline of unpainted window
-            // showing down the right edge and along the bottom.
-            var diameter = (int)Math.Round(CornerRadiusDips * 2 * scale);
-            var region = CreateRoundRectRgn(
+            // The right and bottom edges are exclusive, so the far corner is the slab's extent
+            // exactly: a pixel beyond would leave a hairline of unpainted window showing down
+            // the right edge and along the bottom.
+            var region = CreateRectRgn(
                 _insetX, _insetY,
-                _insetX + _card.Width, _insetY + _card.Height,
-                diameter, diameter);
+                _insetX + _card.Width, _insetY + _card.Height);
 
             if (region == IntPtr.Zero) return;
 
@@ -458,7 +407,7 @@ public sealed partial class SpeedWindow : Window
     }
 
     [DllImport("gdi32.dll", ExactSpelling = true)]
-    private static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
+    private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
 
     [DllImport("gdi32.dll", ExactSpelling = true)]
     private static extern bool DeleteObject(IntPtr handle);

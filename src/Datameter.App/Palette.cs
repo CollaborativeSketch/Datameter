@@ -116,6 +116,18 @@ public static class Palette
     // ---- live speed meter ----------------------------------------------------
 
     /// <summary>
+    /// The floating meter's ground.
+    ///
+    /// Much darker than a card, and the same in both themes. The meter sits over other people's
+    /// windows rather than on the page, so it is read against whatever happens to be behind it;
+    /// a pale chip floating above a dark window reads as a stray dialog rather than a readout.
+    /// </summary>
+    public static Brush MeterBackground() => new SolidColorBrush(Rgb(0x0D, 0x0D, 0x0D));
+
+    /// <summary>Text on the meter, which is always on the dark ground above.</summary>
+    public static Brush MeterText() => new SolidColorBrush(Rgb(0xF2, 0xF2, 0xF2));
+
+    /// <summary>
     /// Direction colours for the meter, taken from the same tuned pairs the network colours
     /// come from: the amber and the green of the palette, darkened for the light row because
     /// these are small glyphs rather than fills and have to hold their own against white.

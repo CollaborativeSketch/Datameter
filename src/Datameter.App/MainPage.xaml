@@ -59,6 +59,9 @@
                         <FontIcon Glyph="&#xE713;" FontSize="15" />
                         <Button.Flyout>
                             <Flyout Placement="BottomEdgeAlignedRight">
+                                <!-- Taller than some screens leave room for, so it scrolls. -->
+                                <ScrollViewer MaxHeight="560" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollMode="Disabled">
                                 <StackPanel Width="230" Spacing="4">
                                     <TextBlock Text="Appearance" FontSize="14" FontWeight="SemiBold"
                                                Margin="0,0,0,6" />
@@ -79,9 +82,23 @@
                                         <ComboBoxItem Content="Medium" Tag="Medium" />
                                         <ComboBoxItem Content="Large" Tag="Large" />
                                     </ComboBox>
-                                    <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen and it snaps to the edge; right-click it to hide."
+                                    <TextBlock Text="A small always-on-top readout of what is moving right now. Drag it anywhere on screen; right-click it to hide."
                                                TextWrapping="Wrap" FontSize="11.5" Margin="0,8,0,0"
                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+
+                                    <TextBlock Text="When you close the window" FontSize="14"
+                                               FontWeight="SemiBold" Margin="0,14,0,0" />
+                                    <ToggleSwitch x:Name="BackgroundToggle" OnContent="Keep running"
+                                                  OffContent="Quit" Margin="0,-4,0,0"
+                                                  Toggled="OnRunInBackgroundToggled" />
+                                    <TextBlock Text="Datameter only records usage while it is running. Left on, closing the window keeps it in the notification area, where you can reopen or quit it."
+                                               TextWrapping="Wrap" FontSize="11.5" Margin="0,-2,0,0"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+
+                                    <TextBlock Text="Start with Windows" FontSize="14"
+                                               FontWeight="SemiBold" Margin="0,14,0,0" />
+                                    <ToggleSwitch x:Name="StartupToggle" OnContent="On" OffContent="Off"
+                                                  Margin="0,-4,0,0" Toggled="OnStartWithWindowsToggled" />
 
                                     <TextBlock Text="Records are kept in your local Datameter database and survive Windows discarding its own history."
                                                TextWrapping="Wrap" FontSize="11.5" Margin="0,10,0,0"
@@ -108,6 +125,7 @@
                                                      FontSize="12" Margin="0,4,0,0"
                                                      NavigateUri="https://github.com/CollaborativeSketch/Datameter" />
                                 </StackPanel>
+                                </ScrollViewer>
                             </Flyout>
                         </Button.Flyout>
                     </Button>
@@ -297,15 +315,19 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0"
-                              Height="150" MinWidth="40" />
+                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0" Height="225" />
 
-                        <Grid Grid.Row="0" Grid.Column="1" Height="150">
-                            <Grid x:Name="ChartGridLines" Height="150" />
-                            <Grid x:Name="ChartHost" Height="150" />
+                        <!--
+                            The plot clears the ruler by the column spacing on its left, so it
+                            takes the same margin on its right and sits evenly inside the card
+                            rather than running up against one edge and not the other.
+                        -->
+                        <Grid Grid.Row="0" Grid.Column="1" Height="225" Margin="0,0,10,0">
+                            <Grid x:Name="ChartGridLines" Height="225" />
+                            <Grid x:Name="ChartHost" Height="225" />
                         </Grid>
 
-                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,9,0,0">
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,9,10,0">
                             <TextBlock Text="{x:Bind ViewModel.AxisStart, Mode=OneWay}" FontSize="11"
                                        HorizontalAlignment="Left"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
