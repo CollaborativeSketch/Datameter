@@ -434,6 +434,16 @@ public sealed partial class MainPage : UserControl
 
     private void ApplyBackgroundPreference()
     {
+        // A fresh install launches at startup: the app can only count what it is running for,
+        // and a day that begins whenever the user happens to open it is not a day's usage.
+        // Applied once and remembered, so switching it off stays off.
+        if (!_preferences.StartupDefaultApplied)
+        {
+            StartupService.Set(true);
+            _preferences.StartupDefaultApplied = true;
+            SettingsService.Save(_preferences);
+        }
+
         _settingToggles = true;
         BackgroundToggle.IsOn = _preferences.RunInBackground;
         StartupToggle.IsOn = StartupService.IsEnabled();
@@ -453,7 +463,7 @@ public sealed partial class MainPage : UserControl
         else HideTray();
     }
 
-    private void OnStartWithWindowsToggled(object sender, RoutedEventArgs e)
+    private void OnLaunchAtStartupToggled(object sender, RoutedEventArgs e)
     {
         if (_settingToggles) return;
         if (StartupService.Set(StartupToggle.IsOn)) return;
