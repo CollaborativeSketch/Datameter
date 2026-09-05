@@ -444,6 +444,10 @@ public sealed partial class MainPage : UserControl
             SettingsService.Save(_preferences);
         }
 
+        // Whichever copy is running is the one that should start, so a reinstall to a different
+        // folder does not leave Windows launching a path that has gone.
+        StartupService.Reconcile();
+
         _settingToggles = true;
         BackgroundToggle.IsOn = _preferences.RunInBackground;
         StartupToggle.IsOn = StartupService.IsEnabled();
