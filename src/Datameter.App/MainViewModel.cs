@@ -279,10 +279,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SpeedDown { get => _speedDown; private set => Set(ref _speedDown, value); }
 
     /// <summary>The live reading, which is measured rather than recorded — see SpeedMonitor.</summary>
-    public void SetSpeed(SpeedSample sample)
+    public void SetSpeed(SpeedSample sample, SpeedUnit unit)
     {
-        SpeedUp = ByteFormat.HumanizeRate(sample.SentPerSecond);
-        SpeedDown = ByteFormat.HumanizeRate(sample.ReceivedPerSecond);
+        SpeedUp = ByteFormat.HumanizeRate(sample.SentPerSecond, unit);
+        SpeedDown = ByteFormat.HumanizeRate(sample.ReceivedPerSecond, unit);
     }
 
     private string _status = "";

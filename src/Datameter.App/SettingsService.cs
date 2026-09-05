@@ -40,6 +40,12 @@ public sealed class Preferences
     public string MeterSize { get; set; } = nameof(MeterSizeOption.Medium);
 
     /// <summary>
+    /// How live speed is written. Bits by default, because that is the unit connections are
+    /// sold and spoken about in.
+    /// </summary>
+    public string SpeedUnit { get; set; } = nameof(Datameter.Core.SpeedUnit.Kilobits);
+
+    /// <summary>
     /// Whether closing the window leaves Datameter running in the notification area. On by
     /// default: the app's whole purpose is to accumulate history past what Windows keeps, which
     /// it cannot do while it is not running.
@@ -94,4 +100,9 @@ public static class SettingsService
 
     public static MeterSizeOption ParseMeterSize(string? value) =>
         Enum.TryParse<MeterSizeOption>(value, out var size) ? size : MeterSizeOption.Medium;
+
+    public static Datameter.Core.SpeedUnit ParseSpeedUnit(string? value) =>
+        Enum.TryParse<Datameter.Core.SpeedUnit>(value, out var unit)
+            ? unit
+            : Datameter.Core.SpeedUnit.Kilobits;
 }

@@ -37,12 +37,15 @@ public sealed partial class SpeedWindow : Window
 
     private static Metrics MetricsFor(MeterSizeOption size) => size switch
     {
-        // The reading sits immediately after its glyph rather than across the slab, so the gap
-        // is the column gap and nothing more. Widths are the longest reading the meter can
-        // show, "999.9 KB/s", plus the glyph, that gap and the padding.
-        MeterSizeOption.Small => new(86, 40, 10.5, 11, new Thickness(7, 2, 8, 2), 3),
-        MeterSizeOption.Large => new(126, 62, 15, 16, new Thickness(10, 5, 11, 5), 4),
-        _ => new(100, 48, 12, 13, new Thickness(8, 3, 9, 3), 3),
+        // Text is set to the glyph's size so the two read as one line rather than as a label
+        // beside a smaller number, and the padding is equal on both sides and top to bottom so
+        // each row sits the same distance from its edges as the other.
+        //
+        // Widths are the longest reading the meter can show — "999.9 KiB/s" — plus the glyph,
+        // the gap between them and the padding.
+        MeterSizeOption.Small => new(98, 42, 11, 11, new Thickness(8, 4, 8, 4), 5),
+        MeterSizeOption.Large => new(142, 66, 16, 16, new Thickness(11, 6, 11, 6), 7),
+        _ => new(116, 52, 13, 13, new Thickness(9, 5, 9, 5), 6),
     };
 
     /// <summary>Gap from the working area's corner when no saved position applies.</summary>
@@ -50,6 +53,8 @@ public sealed partial class SpeedWindow : Window
 
     private readonly IntPtr _hwnd;
     private MeterSizeOption _size = MeterSizeOption.Medium;
+    private SpeedUnit _unit = SpeedUnit.Kilobits;
+    private SpeedSample _latest = SpeedSample.Idle;
 
     /// <summary>The card's size in physical pixels.</summary>
     private SizeInt32 _card;
@@ -148,10 +153,21 @@ public sealed partial class SpeedWindow : Window
         MoveCardTo(before, announce: _placed);
     }
 
+    /// <summary>Changes the unit the reading is written in, and redraws it at once.</summary>
+    public void SetUnit(SpeedUnit unit)
+    {
+        if (_unit == unit) return;
+
+        _unit = unit;
+        Show(_latest);
+    }
+
     public void Show(SpeedSample sample)
     {
-        UpValue.Text = ByteFormat.HumanizeRate(sample.SentPerSecond);
-        DownValue.Text = ByteFormat.HumanizeRate(sample.ReceivedPerSecond);
+        _latest = sample;
+
+        UpValue.Text = ByteFormat.HumanizeRate(sample.SentPerSecond, _unit);
+        DownValue.Text = ByteFormat.HumanizeRate(sample.ReceivedPerSecond, _unit);
 
         var adapter = string.IsNullOrWhiteSpace(sample.InterfaceName) ? "this PC" : sample.InterfaceName;
         ToolTipService.SetToolTip(Root, $"Live speed on {adapter}. Drag to move, double-click to open Datameter.");
@@ -186,20 +202,44 @@ public sealed partial class SpeedWindow : Window
     public void Place(int? savedX, int? savedY)
     {
         if (savedX is { } x && savedY is { } y && IsOnADisplay(x, y))
-        {
             MoveCardTo(new PointInt32(x, y), announce: false);
-        }
         else
-        {
-            var work = WorkAreaFor(CardPosition);
-            MoveCardTo(
-                new PointInt32(
-                    work.X + work.Width - _card.Width - DefaultMargin,
-                    work.Y + work.Height - _card.Height - DefaultMargin),
-                announce: false);
-        }
+            MoveCardTo(DefaultPosition(), announce: false);
 
         _placed = true;
+    }
+
+    /// <summary>
+    /// Puts the meter back in its default corner. Offered from the notification area, because a
+    /// meter dragged somewhere unhelpful — behind a taskbar, onto a display that has since been
+    /// unplugged — otherwise has to be hunted for.
+    /// </summary>
+    public void ResetPosition() => MoveCardTo(DefaultPosition(), announce: true);
+
+    /// <summary>Bottom-right of the working area, clear of the taskbar.</summary>
+    private PointInt32 DefaultPosition()
+    {
+        var work = WorkAreaFor(CardPosition);
+        return new PointInt32(
+            work.X + work.Width - _card.Width - DefaultMargin,
+            work.Y + work.Height - _card.Height - DefaultMargin);
+    }
+
+    /// <summary>
+    /// Keeps the slab within the working area it was dropped on. This is not snapping: it never
+    /// pulls the meter to an edge, it only refuses to let go of it somewhere it cannot be picked
+    /// up again.
+    /// </summary>
+    private PointInt32 KeepOnScreen(PointInt32 card)
+    {
+        var work = WorkAreaFor(card);
+
+        var left = work.X;
+        var top = work.Y;
+        var right = Math.Max(left, work.X + work.Width - _card.Width);
+        var bottom = Math.Max(top, work.Y + work.Height - _card.Height);
+
+        return new PointInt32(Math.Clamp(card.X, left, right), Math.Clamp(card.Y, top, bottom));
     }
 
     private bool IsOnADisplay(int x, int y)
@@ -333,8 +373,9 @@ public sealed partial class SpeedWindow : Window
         // Moving between monitors can change the scale factor under us.
         ApplyMetrics();
 
-        // Wherever it was let go is where it stays.
-        PositionChanged?.Invoke(this, CardPosition);
+        // Wherever it was let go is where it stays, so long as that is somewhere it can be
+        // picked up again.
+        MoveCardTo(KeepOnScreen(CardPosition), announce: true);
     }
 
     // ---- menu ----------------------------------------------------------------

@@ -50,7 +50,10 @@ without both a different UI framework and a different source of usage data.
   instead of a single adapter.
 - A live speed readout, and a small floating meter that stays above other windows. It comes in
   three sizes, drags anywhere on screen, and can be hidden from its own right-click menu or
-  turned off in settings.
+  turned off in settings. The notification area can put it back in its default corner if it ends
+  up somewhere unhelpful.
+- Speed can be read in kilobits per second, kilobytes per second or kibibytes per second. Bits
+  are the default, because that is the unit connections are sold in.
 - Closing the window leaves Datameter running in the notification area, where its icon shows the
   current speed and offers the window back. Both that and starting with Windows are settings.
 - A usage chart with a labelled scale down its left edge, so a bar can be read as a figure rather
