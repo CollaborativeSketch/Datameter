@@ -84,10 +84,23 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Before anything is drawn or any file is opened: a second copy hands the window back
+        // to the first and leaves, rather than becoming a second meter, a second tray icon and
+        // a second writer against the database.
+        if (!SingleInstance.Claim())
+        {
+            Environment.Exit(0);
+            return;
+        }
+
         Speed.Start();
 
         _window = new MainWindow();
         PrimaryWindow = _window;
         _window.Activate();
+
+        // Raised off the UI thread, so it marshals back before touching a window.
+        var queue = _window.DispatcherQueue;
+        SingleInstance.ListenForOtherLaunches(() => queue.TryEnqueue(ShowPrimaryWindow));
     }
 }

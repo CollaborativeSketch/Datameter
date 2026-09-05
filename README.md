@@ -55,7 +55,10 @@ without both a different UI framework and a different source of usage data.
 - Speed can be read in kilobits per second, kilobytes per second or kibibytes per second. Bits
   are the default, because that is the unit connections are sold in.
 - Closing the window leaves Datameter running in the notification area, where its icon shows the
-  current speed and offers the window back. Both that and starting with Windows are settings.
+  current speed and offers the window back. Launching at startup is on by default, because the app
+  can only count what it is running for. Both are settings.
+- One copy per user. Launching Datameter again brings the window you already have to the front
+  rather than starting a second meter, a second icon and a second writer against the database.
 - A usage chart with a labelled scale down its left edge, so a bar can be read as a figure rather
   than only compared with its neighbours.
 - Opens on today the first time it is run, and afterwards on whichever period you last looked at.

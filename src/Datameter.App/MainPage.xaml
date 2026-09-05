@@ -341,17 +341,21 @@
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Running" FontSize="15" FontWeight="SemiBold" />
-                        <TextBlock Text="Datameter only records usage while it is running. Left on, closing the window keeps it in the notification area, where you can reopen or quit it."
+                        <TextBlock Text="Launch at startup" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="Datameter can only count what it is running for. Left on, it starts with Windows and waits quietly in the notification area, so a day's usage is whole rather than starting from whenever you happened to open it."
+                                   TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <ToggleSwitch x:Name="StartupToggle" OnContent="On" OffContent="Off"
+                                      Toggled="OnLaunchAtStartupToggled" />
+
+                        <TextBlock Text="Closing the window" FontSize="15" FontWeight="SemiBold"
+                                   Margin="0,16,0,0" />
+                        <TextBlock Text="Left on, closing the window puts Datameter back in the notification area rather than shutting it down. Its icon there shows the current speed, and gives you the window back or quits it properly."
                                    TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         <ToggleSwitch x:Name="BackgroundToggle"
-                                      OnContent="Keep running when the window is closed"
-                                      OffContent="Quit when the window is closed"
+                                      OnContent="Keeps running" OffContent="Quits"
                                       Toggled="OnRunInBackgroundToggled" />
-                        <ToggleSwitch x:Name="StartupToggle" OnContent="Starts with Windows"
-                                      OffContent="Does not start with Windows" Margin="0,4,0,0"
-                                      Toggled="OnStartWithWindowsToggled" />
                     </StackPanel>
                 </Border>
 

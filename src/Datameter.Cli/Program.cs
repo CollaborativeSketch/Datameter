@@ -19,6 +19,49 @@ var provider = new UsageProvider();
 var sync = new SyncService(provider, store);
 
 // ---- diagnostics ---------------------------------------------------------
+// --speed samples the live meter's own source for a while and reports what it saw, plus the
+// total it accounts for. Run a transfer of known size alongside it and the totals should agree
+// to within the framing overhead the payload does not include.
+if (args.Contains("--speed"))
+{
+    var seconds = int.TryParse(args.FirstOrDefault(a => a.StartsWith("--seconds="))?[10..], out var s) ? s : 15;
+    var monitor = new SpeedMonitor();
+
+    Console.WriteLine($"sampling for {seconds}s on the adapter carrying the internet connection");
+    Console.WriteLine();
+
+    monitor.Sample();   // the first call only sets the baseline
+
+    // Rates are multiplied back out by the interval that actually elapsed. Summing them as if
+    // every interval were exactly a second understates the total by however much Thread.Sleep
+    // overshoots, which is a few percent and would look like the meter reading low.
+    double sent = 0, received = 0;
+    var clock = Stopwatch.StartNew();
+
+    for (var i = 0; i < seconds; i++)
+    {
+        Thread.Sleep(1000);
+
+        var elapsed = clock.Elapsed.TotalSeconds;
+        clock.Restart();
+
+        var sample = monitor.Sample();
+
+        sent += sample.SentPerSecond * elapsed;
+        received += sample.ReceivedPerSecond * elapsed;
+
+        Console.WriteLine(
+            $"{i + 1,3}s  up {ByteFormat.HumanizeRate(sample.SentPerSecond, SpeedUnit.Kilobytes),12}" +
+            $"  down {ByteFormat.HumanizeRate(sample.ReceivedPerSecond, SpeedUnit.Kilobytes),12}" +
+            $"  ({sample.InterfaceName})");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"accounted for: sent {ByteFormat.Humanize((long)sent)}, received {ByteFormat.Humanize((long)received)}");
+    Console.WriteLine($"             : {(long)sent:N0} and {(long)received:N0} bytes");
+    return;
+}
+
 // --networks prints the stored network rows and stops. Two rows sharing a profile name
 // means the same network is being counted twice.
 if (args.Contains("--networks"))

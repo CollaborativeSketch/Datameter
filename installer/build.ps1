@@ -55,6 +55,37 @@ foreach ($t in $targets) {
     if ($LASTEXITCODE -ne 0) { throw "iscc failed for $($t.Arch)" }
 }
 
+# Code signing, when a certificate is available.
+#
+# Unsigned installers make SmartScreen warn on first run, and the only cure is a certificate
+# from a CA — there is nothing to change in the code. This is here so that the day one is
+# bought, releasing signed builds is setting one variable rather than reworking the release.
+#
+#   $env:DATAMETER_SIGN_THUMBPRINT = "<sha1 thumbprint of a cert in CurrentUser\My>"
+#   powershell -File installeruild.ps1
+#
+# Reputation is earned per-certificate, so the first signed releases may still warn.
+$thumbprint = $env:DATAMETER_SIGN_THUMBPRINT
+
+if ($thumbprint) {
+    $signtool = @(
+        "${env:ProgramFiles(x86)}\Windows Kitsind\signtool.exe",
+        "${env:ProgramFiles(x86)}\Windows Kitsin\signtool.exe"
+    ) + @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kitsin\*d\signtool.exe" -ErrorAction SilentlyContinue |
+          Sort-Object FullName -Descending | ForEach-Object { $_.FullName }) |
+        Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if (-not $signtool) { throw "DATAMETER_SIGN_THUMBPRINT is set but signtool.exe was not found. Install the Windows SDK signing tools." }
+
+    foreach ($exe in Get-ChildItem $Dist -Filter '*.exe') {
+        Write-Host "=== signing $($exe.Name) ===" -ForegroundColor Cyan
+        & $signtool sign /sha1 $thumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $exe.FullName
+        if ($LASTEXITCODE -ne 0) { throw "signing failed for $($exe.Name)" }
+    }
+} else {
+    Write-Host "not signed: set DATAMETER_SIGN_THUMBPRINT to sign these installers" -ForegroundColor DarkYellow
+}
+
 Write-Host ""
 Write-Host "=== done ===" -ForegroundColor Green
 Get-ChildItem $Dist -Filter '*.exe' |

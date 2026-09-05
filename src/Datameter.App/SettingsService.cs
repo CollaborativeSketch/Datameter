@@ -55,6 +55,15 @@ public sealed class Preferences
     /// </summary>
     public bool RunInBackground { get; set; } = true;
 
+    /// <summary>
+    /// Whether the launch-at-startup default has been applied for this install.
+    ///
+    /// Datameter starts with Windows out of the box, because it can only count what it is
+    /// running for. That has to be applied once and remembered: without this flag, switching it
+    /// off would be undone at the next launch, which is worse than never defaulting it on.
+    /// </summary>
+    public bool StartupDefaultApplied { get; set; }
+
     /// <summary>What a fresh install opens on.</summary>
     public const string DefaultPeriod = "Today";
 }
