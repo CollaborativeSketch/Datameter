@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Datameter.Core;
 using Microsoft.UI.Xaml.Media;
@@ -165,6 +166,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         yield return new("Last 7 days", ChartGrain.Day, now =>
             (now.Date.AddDays(-6), now));
 
+        // The week just gone, whole, the way "Last month" is the month just gone — not the
+        // rolling seven days above it.
+        yield return new("Last week", ChartGrain.Day, now =>
+            (StartOfWeek(now).AddDays(-7), StartOfWeek(now)));
+
         yield return new("This month", ChartGrain.Day, now =>
             (FirstOfMonth(now), now));
 
@@ -180,12 +186,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
         yield return new("Last 12 months", ChartGrain.Month, now =>
             (FirstOfMonth(now).AddMonths(-11), now));
 
+        // The calendar year just gone, as against the rolling twelve months above it.
+        yield return new("Last year", ChartGrain.Month, now =>
+            (FirstOfYear(now).AddYears(-1), FirstOfYear(now)));
+
         // The end date is inclusive: picking 5 Sept means through the end of 5 Sept.
         yield return new(CustomRangeLabel, ChartGrain.Day, _ =>
             (_customFrom.Date, _customTo.Date.AddDays(1)));
 
         static DateTimeOffset FirstOfMonth(DateTimeOffset t) =>
             new(t.Year, t.Month, 1, 0, 0, 0, t.Offset);
+
+        static DateTimeOffset FirstOfYear(DateTimeOffset t) =>
+            new(t.Year, 1, 1, 0, 0, 0, t.Offset);
+
+        // Where the week starts is regional — Sunday in the United States, Monday across much
+        // of Europe — so it comes from the user's own Windows setting rather than a constant.
+        static DateTimeOffset StartOfWeek(DateTimeOffset t)
+        {
+            var first = CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek;
+            var back = ((int)t.DayOfWeek - (int)first + 7) % 7;
+            return new DateTimeOffset(t.Date.AddDays(-back), t.Offset);
+        }
     }
 
     public ObservableCollection<PeriodOption> Periods { get; }

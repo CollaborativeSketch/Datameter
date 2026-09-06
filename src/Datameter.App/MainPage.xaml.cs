@@ -16,6 +16,18 @@ public sealed partial class MainPage : UserControl
     private readonly AppIconLoader _icons = new();
     private readonly SyncService _sync;
     private readonly DispatcherTimer _refreshTimer = new();
+
+    /// <summary>
+    /// Waits for a resize to stop before the code-drawn parts of the page are rebuilt. Short
+    /// enough not to be noticed on a single size change, long enough to swallow a drag.
+    /// </summary>
+    private readonly DispatcherTimer _resizeSettle = new() { Interval = TimeSpan.FromMilliseconds(80) };
+
+    /// <summary>The size those parts were last drawn for, so an unchanged size does no work.</summary>
+    private Windows.Foundation.Size _laidOutFor;
+
+    /// <summary>Mirrors the MaxWidth the page's content column carries in the XAML.</summary>
+    private const double ContentMaxWidth = 880;
     private readonly Preferences _preferences;
 
     /// <summary>
@@ -108,11 +120,28 @@ public sealed partial class MainPage : UserControl
         AboutName.Text = AppInfo.DisplayName;
         VersionText.Text = $"Version {AppVersion}";
 
-        PageRoot.SizeChanged += (_, _) =>
+        // The contribution bar, the network tiles and the chart are drawn in code from the
+        // width they are given, and a resize is not one event but a stream of them. Rebuilding
+        // all three on every tick is tens of milliseconds of layout per frame, which is long
+        // enough that the frames in between are presented with the page laid out for the width
+        // it had a moment ago — content sized for a wider window, cut off at the right, then
+        // putting itself right once the drag stops. Rebuilding once, when the size settles,
+        // gets the correct frame out sooner and does a fraction of the work.
+        _resizeSettle.Tick += (_, _) =>
         {
+            _resizeSettle.Stop();
+            _laidOutFor = new Windows.Foundation.Size(PageRoot.ActualWidth, PageRoot.ActualHeight);
+            FitHeadline();
             RebuildContributionBar();
             RebuildNetworkChips();
             RebuildChart();
+        };
+
+        PageRoot.SizeChanged += (_, e) =>
+        {
+            if (e.NewSize == _laidOutFor) return;
+            _resizeSettle.Stop();
+            _resizeSettle.Start();
         };
 
         // Catches the system flipping light/dark while "Use system setting" is selected.
@@ -912,7 +941,15 @@ public sealed partial class MainPage : UserControl
         if (networks.Count == 0) return;
 
         const double MinChipWidth = 176;
-        var available = NetworkChips.ActualWidth > 0 ? NetworkChips.ActualWidth : 880;
+
+        // Before the first layout pass the grid has no width of its own, so ask the scroller
+        // what it is about to be given. Capped at the page's own maximum, or a wide window
+        // would be measured for more columns than the content column will ever hold.
+        var available = NetworkChips.ActualWidth;
+        if (available <= 0)
+            available = MainView.ViewportWidth - MainView.Padding.Left - MainView.Padding.Right;
+        available = available > 0 ? Math.Min(available, ContentMaxWidth) : ContentMaxWidth;
+
         var columns = Math.Max(1, Math.Min(networks.Count, (int)(available / MinChipWidth)));
         var rows = (int)Math.Ceiling(networks.Count / (double)columns);
 
@@ -945,7 +982,17 @@ public sealed partial class MainPage : UserControl
                 Foreground = Palette.TextPrimary(theme)
             };
 
-            var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            // A Grid, not a horizontal StackPanel: a StackPanel measures its children with
+            // unbounded width, so the name never learns how much room it has, never trims, and
+            // is cut mid-letter by the tile's edge instead of ending in an ellipsis. Worse, the
+            // tile then asks for the width of the whole untrimmed name, which is how a row of
+            // tiles comes to want more width than the page has.
+            var titleRow = new Grid();
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            name.Margin = new Thickness(8, 0, 0, 0);
+            Grid.SetColumn(dot, 0);
+            Grid.SetColumn(name, 1);
             titleRow.Children.Add(dot);
             titleRow.Children.Add(name);
 
@@ -957,7 +1004,7 @@ public sealed partial class MainPage : UserControl
                 Foreground = Palette.TextTertiary(theme)
             };
 
-            var text = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
+            var text = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
             text.Children.Add(titleRow);
             text.Children.Add(value);
 
@@ -1046,6 +1093,27 @@ public sealed partial class MainPage : UserControl
                 Margin = new Thickness(0, y - (RulerLabelHeight / 2), 0, 0)
             });
         }
+    }
+
+    /// <summary>
+    /// Keeps the headline row inside the page.
+    ///
+    /// That row is a horizontal run — total, sent, received, live speed — and none of it can
+    /// shrink: the two speed figures carry minimum widths so the row does not reshuffle every
+    /// second as the numbers change length. Narrow the window and the run simply carries on
+    /// past the edge of the content column, where it is cut off mid-figure.
+    ///
+    /// The live speed is the part to give up. It is the only thing on the row that is also on
+    /// the floating meter, so nothing is actually lost by standing it down.
+    /// </summary>
+    private void FitHeadline()
+    {
+        const double SpeedNeeds = 760;
+
+        var available = PageRoot.ActualWidth;
+        LiveSpeedBlock.Visibility = available > 0 && available < SpeedNeeds
+            ? Visibility.Collapsed
+            : Visibility.Visible;
     }
 
     private void RebuildChart()
