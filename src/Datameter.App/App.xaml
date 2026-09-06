@@ -7,6 +7,32 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                The gauge mark's colours, for the copy drawn in XAML (the title bar). They are the
+                two rows of Palette.cs: the light row is more saturated so it holds on white, the
+                dark row is the icon's own. "Default" is what the dark theme resolves to.
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="GaugeCyanBrush" Color="#0091FF" />
+                    <SolidColorBrush x:Key="GaugeGreenBrush" Color="#00B888" />
+                    <SolidColorBrush x:Key="GaugeAmberBrush" Color="#FF8A00" />
+                    <SolidColorBrush x:Key="GaugeInkBrush" Color="#1B1B1B" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="GaugeCyanBrush" Color="#4CC2FF" />
+                    <SolidColorBrush x:Key="GaugeGreenBrush" Color="#5CD6A9" />
+                    <SolidColorBrush x:Key="GaugeAmberBrush" Color="#FFA94D" />
+                    <SolidColorBrush x:Key="GaugeInkBrush" Color="#F2F2F2" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="GaugeCyanBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="GaugeGreenBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="GaugeAmberBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="GaugeInkBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

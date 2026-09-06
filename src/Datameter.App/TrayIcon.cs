@@ -50,18 +50,24 @@ public sealed class TrayIcon : IDisposable
     /// <summary>Menu command ids start above zero, because TrackPopupMenu returns 0 for "nothing".</summary>
     private const int FirstCommandId = 1;
 
+    /// <summary>GetSystemMetrics index for the width of a small icon, which is what the tray draws.</summary>
+    private const int SmCxSmIcon = 49;
+
     private readonly WndProc _wndProc;   // held so the delegate is not collected under native code
     private readonly IntPtr _hwnd;
     private readonly string _className;
 
     /// <summary>
-    /// Held for the icon's lifetime, not just for the handle. Icon owns its HICON and destroys
-    /// it when finalised, so letting this go out of scope would leave the shell drawing from a
-    /// handle that has been freed — a blank tray icon, appearing at a garbage collection rather
-    /// than at anything to do with the code.
+    /// Only set on the fallback path. Icon owns its HICON and destroys it when finalised, so
+    /// letting this go out of scope would leave the shell drawing from a handle that has been
+    /// freed — a blank tray icon, appearing at a garbage collection rather than at anything to
+    /// do with the code.
     /// </summary>
     private readonly System.Drawing.Icon? _iconSource;
     private readonly IntPtr _icon;
+
+    /// <summary>True when <see cref="_icon"/> came from the shell and is ours to destroy.</summary>
+    private readonly bool _ownsIcon;
 
     private List<TrayMenuItem> _menu = new();
     private string _tooltip = "";
@@ -94,8 +100,12 @@ public sealed class TrayIcon : IDisposable
 
         if (_hwnd == IntPtr.Zero) return;
 
-        _iconSource = LoadAppIcon();
-        _icon = _iconSource?.Handle ?? IntPtr.Zero;
+        _icon = LoadTrayIcon(out _ownsIcon);
+        if (_icon == IntPtr.Zero)
+        {
+            _iconSource = LoadAppIcon();
+            _icon = _iconSource?.Handle ?? IntPtr.Zero;
+        }
         _tooltip = Trim(tooltip);
 
         // Explorer can restart. When it does every notification icon is gone and has to be
@@ -221,8 +231,46 @@ public sealed class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// The app's own icon, taken from the running executable so the tray matches the taskbar
-    /// and the installer without shipping a second copy of the artwork.
+    /// The app's own icon at the size the notification area draws it.
+    ///
+    /// The executable's icon carries a separate image per size, and the 16 px one is drawn
+    /// differently from the rest: no tile, wider slots, a heavier needle. Asking the shell for
+    /// the small size at the current DPI is what gets that image rather than the 32 scaled down,
+    /// which is what <see cref="LoadAppIcon"/> below returns and why it is only the fallback.
+    /// </summary>
+    private static IntPtr LoadTrayIcon(out bool owned)
+    {
+        owned = false;
+
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe)) return IntPtr.Zero;
+
+            var size = GetSystemMetricsForDpi(SmCxSmIcon, GetDpiForSystem());
+            if (size <= 0) size = 16;
+
+            // Large size in the low word, small in the high word. Both are asked for at the
+            // small size; the large handle is only produced because the call insists.
+            var packed = (uint)((size << 16) | size);
+            if (SHDefExtractIcon(exe, 0, 0, out var large, out var small, packed) != 0)
+                return IntPtr.Zero;
+
+            if (large != IntPtr.Zero && large != small) DestroyIcon(large);
+            if (small == IntPtr.Zero) return IntPtr.Zero;
+
+            owned = true;
+            return small;
+        }
+        catch
+        {
+            return IntPtr.Zero;
+        }
+    }
+
+    /// <summary>
+    /// Fallback: the executable's icon at whatever size the framework picks, which is 32 and
+    /// gets scaled. Only used if the shell refuses the sized request above.
     /// </summary>
     private static System.Drawing.Icon? LoadAppIcon()
     {
@@ -255,6 +303,7 @@ public sealed class TrayIcon : IDisposable
             if (_hwnd != IntPtr.Zero) DestroyWindow(_hwnd);
             if (!string.IsNullOrEmpty(_className)) UnregisterClass(_className, GetModuleHandle(null));
 
+            if (_ownsIcon && _icon != IntPtr.Zero) DestroyIcon(_icon);
             _iconSource?.Dispose();
         }
         catch
@@ -356,4 +405,17 @@ public sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll", EntryPoint = "RegisterWindowMessageW", CharSet = CharSet.Unicode)]
     private static extern uint RegisterWindowMessage(string message);
+
+    [DllImport("shell32.dll", EntryPoint = "SHDefExtractIconW", CharSet = CharSet.Unicode)]
+    private static extern int SHDefExtractIcon(
+        string iconFile, int index, uint flags, out IntPtr largeIcon, out IntPtr smallIcon, uint packedSizes);
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr icon);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForSystem();
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetricsForDpi(int index, uint dpi);
 }
