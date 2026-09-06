@@ -64,6 +64,15 @@ without both a different UI framework and a different source of usage data.
 - Opens on today the first time it is run, and afterwards on whichever period you last looked at.
 - Light, dark, or follow-system appearance, remembered between runs.
 
+## Your data
+
+Everything Datameter records stays on this PC, in `%LOCALAPPDATA%\Datameter`: `usage.db` holds the
+history and `settings.json` your preferences. Nothing is sent anywhere. Uninstalling leaves both
+in place, so reinstalling keeps your history; delete that folder yourself if you want it gone.
+
+The installed app is roughly 180 MB on disk, against a 40 to 60 MB download, because each build
+carries its own copy of .NET and the Windows App SDK rather than requiring them on the machine.
+
 ## Local database
 
 Windows retains roughly 30 days of usage history. Datameter caches what it reads into a local
