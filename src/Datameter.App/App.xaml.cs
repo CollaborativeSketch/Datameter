@@ -99,8 +99,9 @@ public partial class App : Application
         PrimaryWindow = _window;
         _window.Activate();
 
-        // Raised off the UI thread, so it marshals back before touching a window.
+        // Raised off the UI thread, so both marshal back before touching a window.
         var queue = _window.DispatcherQueue;
         SingleInstance.ListenForOtherLaunches(() => queue.TryEnqueue(ShowPrimaryWindow));
+        SingleInstance.ListenForQuitRequests(() => queue.TryEnqueue(Quit));
     }
 }

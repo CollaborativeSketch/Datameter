@@ -61,7 +61,8 @@
                               ToolTipService.ToolTip="Time period" />
 
                     <Button Grid.Column="2" Width="36" Height="34" Padding="0" CornerRadius="6"
-                            Click="OnOpenSettings" ToolTipService.ToolTip="Settings">
+                            Click="OnOpenSettings" ToolTipService.ToolTip="Settings"
+                            AutomationProperties.Name="Settings">
                         <FontIcon Glyph="&#xE713;" FontSize="15" />
                     </Button>
                 </Grid>
@@ -154,7 +155,8 @@
                 </Border>
 
                 <!-- Per-app usage, the Settings breakdown -->
-                <Grid Margin="0,0,0,12">
+                <Grid Margin="0,0,0,12"
+                      Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                     <TextBlock Text="{x:Bind ViewModel.AppsTitle, Mode=OneWay}" FontSize="14"
                                FontWeight="SemiBold" VerticalAlignment="Center"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -228,11 +230,14 @@
                         HorizontalAlignment="Left" Click="OnShowAllApps"
                         Visibility="{x:Bind ViewModel.HasMoreApps, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
 
-                <!-- Chart -->
+                <!-- Chart. Collapsed when there is nothing to draw, so the empty-state message is
+                     the whole page rather than a caption above an empty card. -->
                 <TextBlock Text="{x:Bind ViewModel.ChartTitle, Mode=OneWay}" FontSize="14"
                            FontWeight="SemiBold" Margin="0,0,0,12"
+                           Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Border Padding="16,14,16,11" CornerRadius="6"
+                        Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                     <!--
@@ -287,7 +292,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Width="36" Height="34" Padding="0" CornerRadius="6"
-                            Click="OnCloseSettings" ToolTipService.ToolTip="Back">
+                            Click="OnCloseSettings" ToolTipService.ToolTip="Back"
+                            AutomationProperties.Name="Back to usage">
                         <FontIcon Glyph="&#xE72B;" FontSize="15" />
                     </Button>
                     <TextBlock Grid.Column="1" Text="Settings" VerticalAlignment="Center"

@@ -64,6 +64,13 @@ public sealed class Preferences
     /// </summary>
     public bool StartupDefaultApplied { get; set; }
 
+    /// <summary>
+    /// When every profile was last swept, rather than only the ones already known to carry
+    /// traffic. A network that was idle the day it was first seen would otherwise never be
+    /// retried, so a full sweep runs at most once a day.
+    /// </summary>
+    public DateTimeOffset? LastFullSweepUtc { get; set; }
+
     /// <summary>What a fresh install opens on.</summary>
     public const string DefaultPeriod = "Today";
 }

@@ -17,10 +17,18 @@ public static class SingleInstance
 {
     private static Mutex? _held;
     private static EventWaitHandle? _wakeUp;
-    private static Thread? _listener;
+    private static EventWaitHandle? _quitRequested;
 
-    private static string MutexName => $@"Local\Datameter.Instance.{AppInfo.DisplayName}";
+    public static string MutexName => $@"Local\Datameter.Instance.{AppInfo.DisplayName}";
     private static string EventName => $@"Local\Datameter.Activate.{AppInfo.DisplayName}";
+
+    /// <summary>
+    /// Signalled by the installer to ask a running Datameter to quit before files are replaced.
+    /// Closing the window only hides it, so an upgrade otherwise meets a locked executable —
+    /// which, with run-in-background and launch-at-startup both on by default, is the normal
+    /// state of every machine at upgrade time rather than an edge case.
+    /// </summary>
+    public static string QuitEventName => $@"Local\Datameter.Quit.{AppInfo.DisplayName}";
 
     /// <summary>
     /// True if this process is the one that should run. False means another copy already owns
@@ -40,7 +48,15 @@ public static class SingleInstance
             {
                 if (EventWaitHandle.TryOpenExisting(EventName, out var existing))
                 {
-                    using (existing) existing.Set();
+                    using (existing)
+                    {
+                        // Hand over the right to come to the front. Without it the other copy's
+                        // Activate can be demoted to a flashing taskbar button, because the
+                        // process the user actually launched is the one with the foreground
+                        // right and it is about to exit.
+                        AllowSetForegroundWindow(AllowAnyProcess);
+                        existing.Set();
+                    }
                 }
             }
             catch
@@ -67,23 +83,38 @@ public static class SingleInstance
     /// </summary>
     public static void ListenForOtherLaunches(Action activate)
     {
+        _wakeUp = Listen(EventName, activate, "Datameter second-launch listener");
+    }
+
+    /// <summary>
+    /// Starts listening for the installer's request to quit. <paramref name="quit"/> is raised
+    /// on a background thread, so it must marshal to the UI itself.
+    /// </summary>
+    public static void ListenForQuitRequests(Action quit)
+    {
+        _quitRequested = Listen(QuitEventName, quit, "Datameter quit listener");
+    }
+
+    private static EventWaitHandle? Listen(string name, Action onSignal, string threadName)
+    {
+        EventWaitHandle handle;
         try
         {
-            _wakeUp = new EventWaitHandle(false, EventResetMode.AutoReset, EventName);
+            handle = new EventWaitHandle(false, EventResetMode.AutoReset, name);
         }
         catch
         {
-            return;
+            return null;
         }
 
-        _listener = new Thread(() =>
+        var thread = new Thread(() =>
         {
             while (true)
             {
                 try
                 {
-                    if (!_wakeUp.WaitOne()) return;
-                    activate();
+                    if (!handle.WaitOne()) return;
+                    onSignal();
                 }
                 catch
                 {
@@ -93,9 +124,15 @@ public static class SingleInstance
         })
         {
             IsBackground = true,
-            Name = "Datameter second-launch listener"
+            Name = threadName
         };
 
-        _listener.Start();
+        thread.Start();
+        return handle;
     }
+
+    private const uint AllowAnyProcess = 0xFFFFFFFF;   // ASFW_ANY
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(uint processId);
 }

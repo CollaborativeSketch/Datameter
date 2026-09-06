@@ -48,23 +48,29 @@ public static class StartupService
     /// </summary>
     public static void Reconcile()
     {
+#if DEBUG
+        // A dev build shares settings.json, the database and this registry value with the
+        // installed copy. Reconciling here would point Windows at bin\Debug at the next
+        // sign-in, and leave it there until the installed copy happened to be opened again.
+#else
         try
         {
             if (!IsEnabled()) return;
 
-            var exe = Environment.ProcessPath;
-            if (string.IsNullOrEmpty(exe)) return;
-
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-            var recorded = key?.GetValue(ValueName) as string;
+            var recorded = (key?.GetValue(ValueName) as string)?.Trim('"');
 
-            if (string.Equals(recorded, $"\"{exe}\"", StringComparison.OrdinalIgnoreCase)) return;
+            // Only when the recorded path has actually gone. Rewriting whenever it merely
+            // differs would let any copy that happens to run steal the entry from the one the
+            // user installed.
+            if (!string.IsNullOrEmpty(recorded) && File.Exists(recorded)) return;
 
             Set(true);
         }
         catch
         {
         }
+#endif
     }
 
     /// <summary>Returns whether the change took, so the switch can be put back if it did not.</summary>

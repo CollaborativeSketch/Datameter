@@ -27,7 +27,41 @@ public sealed class UsageStore : IDisposable
         _db.Open();
         Execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
         CreateSchema();
+        RepairIndexesIfNeeded();
         MergeDuplicateNetworks();
+    }
+
+    /// <summary>
+    /// Rebuilds the indexes when SQLite says they disagree with the tables.
+    ///
+    /// An index with entries for rows that are no longer there is worse than a missing row: a
+    /// lookup by name answers with an id, the id resolves to nothing, and the failure surfaces
+    /// far away as a foreign key error on a completely different table. It is the kind of state
+    /// an unclean exit leaves behind, which is why the store is disposed properly now.
+    ///
+    /// quick_check skips the expensive per-row verification and still catches exactly this, so
+    /// it is cheap enough to run on every open; the repair only runs when it has to.
+    /// </summary>
+    private void RepairIndexesIfNeeded()
+    {
+        try
+        {
+            string verdict;
+            using (var check = _db.CreateCommand())
+            {
+                check.CommandText = "PRAGMA quick_check(1);";
+                verdict = check.ExecuteScalar() as string ?? "ok";
+            }
+
+            if (string.Equals(verdict, "ok", StringComparison.OrdinalIgnoreCase)) return;
+
+            // REINDEX rebuilds every index from the table contents, which is the authority.
+            Execute("REINDEX;");
+        }
+        catch
+        {
+            // A database too damaged to check is not made better by refusing to start.
+        }
     }
 
     public static string DefaultPath => Path.Combine(
@@ -137,7 +171,16 @@ public sealed class UsageStore : IDisposable
     /// Identity-only overload, for history recovered from an archive where no live
     /// connection profile exists to hand over.
     /// </summary>
-    public long UpsertNetwork(string profileName, string? adapterId, NetworkKind kind, bool isMetered)
+    /// <summary>
+    /// Records a network, or refreshes what is known about one.
+    ///
+    /// <paramref name="kind"/> and <paramref name="isMetered"/> are nullable because they are
+    /// only knowable while the network is available: away from it, Windows answers "Other" and
+    /// "not metered" rather than refusing. Writing those guesses over what was learned while
+    /// connected is how every network in the database ended up unmetered, including the phone
+    /// hotspots and 4G routers. Null means "still unknown", and leaves the stored value alone.
+    /// </summary>
+    public long UpsertNetwork(string profileName, string? adapterId, NetworkKind? kind, bool? isMetered)
     {
         lock (_sync)
         {
@@ -157,12 +200,13 @@ public sealed class UsageStore : IDisposable
                     using var touch = _db.CreateCommand();
                     // Keep a known adapter id rather than letting a later blank overwrite it.
                     touch.CommandText =
-                        "UPDATE Network SET LastSeenUtc = $t, IsMetered = $m, Kind = $k, " +
+                        "UPDATE Network SET LastSeenUtc = $t, " +
+                        "  IsMetered = COALESCE($m, IsMetered), Kind = COALESCE($k, Kind), " +
                         "  AdapterId = CASE WHEN $a <> '' THEN $a ELSE AdapterId END " +
                         "WHERE Id = $id;";
                     touch.Parameters.AddWithValue("$t", now);
-                    touch.Parameters.AddWithValue("$m", isMetered ? 1 : 0);
-                    touch.Parameters.AddWithValue("$k", (int)kind);
+                    touch.Parameters.AddWithValue("$m", isMetered is { } m ? (m ? 1 : 0) : (object)DBNull.Value);
+                    touch.Parameters.AddWithValue("$k", kind is { } k ? (int)k : (object)DBNull.Value);
                     touch.Parameters.AddWithValue("$a", adapterId);
                     touch.Parameters.AddWithValue("$id", existing);
                     touch.ExecuteNonQuery();
@@ -176,16 +220,34 @@ public sealed class UsageStore : IDisposable
             var colorIndex = Convert.ToInt32(count.ExecuteScalar());
 
             using var insert = _db.CreateCommand();
+
+            // RETURNING rather than last_insert_rowid(): the id comes from the row that was
+            // actually written, by the statement that wrote it. "The last insert on this
+            // connection" is a different question, and answering the wrong one hands out an id
+            // no row has — which surfaces later as a foreign key failure somewhere else.
             insert.CommandText =
                 "INSERT INTO Network (ProfileName, AdapterId, Kind, IsMetered, ColorIndex, FirstSeenUtc, LastSeenUtc) " +
-                "VALUES ($n, $a, $k, $m, $c, $t, $t); SELECT last_insert_rowid();";
+                "VALUES ($n, $a, $k, $m, $c, $t, $t) RETURNING Id;";
             insert.Parameters.AddWithValue("$n", profileName);
             insert.Parameters.AddWithValue("$a", adapterId);
-            insert.Parameters.AddWithValue("$k", (int)kind);
-            insert.Parameters.AddWithValue("$m", isMetered ? 1 : 0);
+            // A first sighting with nothing known falls back to the old defaults, so the columns
+            // stay non-null; a later sighting while connected fills in the truth.
+            insert.Parameters.AddWithValue("$k", (int)(kind ?? NetworkKind.Other));
+            insert.Parameters.AddWithValue("$m", isMetered == true ? 1 : 0);
             insert.Parameters.AddWithValue("$c", colorIndex);
             insert.Parameters.AddWithValue("$t", now);
-            return (long)insert.ExecuteScalar()!;
+
+            if (insert.ExecuteScalar() is long inserted) return inserted;
+
+            // The insert was refused, almost certainly by UNIQUE (ProfileName, AdapterId).
+            // Whatever row is already there under this name is the answer.
+            using var again = _db.CreateCommand();
+            again.CommandText = "SELECT Id FROM Network WHERE ProfileName = $n ORDER BY Id LIMIT 1;";
+            again.Parameters.AddWithValue("$n", profileName);
+
+            return again.ExecuteScalar() is long found
+                ? found
+                : throw new InvalidOperationException($"Could not record the network '{profileName}'.");
         }
     }
 
@@ -333,6 +395,87 @@ public sealed class UsageStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// The exclusive upper bound for an hour-keyed query, rounded up rather than down.
+    ///
+    /// Keys are floored to the hour and the comparison is exclusive, so passing "now" would drop
+    /// the hour in progress: every period ending now — Today, Last 24 hours, Last 7 days, This
+    /// month, Last 30 days, Last 12 months — would be missing up to 59 minutes of exactly the
+    /// traffic the user is watching accumulate, and the newest bar of the chart would always be
+    /// empty. A bound already on the hour is left alone, so ranges that end at midnight still
+    /// exclude midnight itself.
+    /// </summary>
+    private static string ExclusiveHourKey(DateTimeOffset to)
+    {
+        var utc = to.ToUniversalTime();
+        var floored = UsageProvider.FloorToHour(utc);
+        var bound = floored == utc ? floored : floored.AddHours(1);
+
+        return bound.UtcDateTime.ToString(HourFormat);
+    }
+
+    /// <summary>
+    /// Rows in SyncState whose Network row has gone, and whether a given network id exists.
+    /// Diagnostic only: orphans are impossible while foreign keys are enforced, so finding any
+    /// means they were not enforced when something was deleted.
+    /// </summary>
+    public (int NetworkRows, int OrphanSyncRows, string Orphans) DescribeIntegrity()
+    {
+        lock (_sync)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText =
+                "SELECT (SELECT COUNT(*) FROM Network), " +
+                "       (SELECT COUNT(*) FROM SyncState WHERE NetworkId NOT IN (SELECT Id FROM Network)), " +
+                "       (SELECT COALESCE(GROUP_CONCAT(NetworkId), '') FROM SyncState " +
+                "        WHERE NetworkId NOT IN (SELECT Id FROM Network));";
+
+            using var r = cmd.ExecuteReader();
+            return r.Read() ? (r.GetInt32(0), r.GetInt32(1), r.GetString(2)) : (0, 0, "");
+        }
+    }
+
+    /// <summary>Diagnostic: every Network row id and name, straight from the table.</summary>
+    public IReadOnlyList<(long Id, string Name)> DescribeRawNetworks()
+    {
+        lock (_sync)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT Id, ProfileName FROM Network ORDER BY Id;";
+
+            var rows = new List<(long, string)>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) rows.Add((r.GetInt64(0), r.GetString(1)));
+            return rows;
+        }
+    }
+
+    /// <summary>Diagnostic: SQLite's own verdict on the file.</summary>
+    public string IntegrityCheck()
+    {
+        lock (_sync)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "PRAGMA integrity_check;";
+
+            var lines = new List<string>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) lines.Add(r.GetString(0));
+            return string.Join("; ", lines);
+        }
+    }
+
+    /// <summary>Diagnostic: whether the foreign key pragma is actually on for this connection.</summary>
+    public bool ForeignKeysEnforced()
+    {
+        lock (_sync)
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "PRAGMA foreign_keys;";
+            return Convert.ToInt32(cmd.ExecuteScalar()) != 0;
+        }
+    }
+
     /// <summary>Per-network totals across a window.</summary>
     public IReadOnlyList<NetworkTotal> GetTotals(DateTimeOffset fromUtc, DateTimeOffset toUtc)
     {
@@ -347,7 +490,7 @@ public sealed class UsageStore : IDisposable
                 "GROUP BY n.Id " +
                 "ORDER BY (COALESCE(SUM(h.BytesSent), 0) + COALESCE(SUM(h.BytesReceived), 0)) DESC;";
             cmd.Parameters.AddWithValue("$from", fromUtc.UtcDateTime.ToString(HourFormat));
-            cmd.Parameters.AddWithValue("$to", toUtc.UtcDateTime.ToString(HourFormat));
+            cmd.Parameters.AddWithValue("$to", ExclusiveHourKey(toUtc));
 
             var totals = new List<NetworkTotal>();
             using var r = cmd.ExecuteReader();
@@ -387,7 +530,7 @@ public sealed class UsageStore : IDisposable
                 "WHERE HourUtc >= $from AND HourUtc < $to " + filter +
                 "GROUP BY HourUtc;";
             cmd.Parameters.AddWithValue("$from", fromUtc.UtcDateTime.ToString(HourFormat));
-            cmd.Parameters.AddWithValue("$to", toUtc.UtcDateTime.ToString(HourFormat));
+            cmd.Parameters.AddWithValue("$to", ExclusiveHourKey(toUtc));
 
             if (networkIds is { Count: > 0 })
             {

@@ -284,15 +284,30 @@ public sealed partial class MainPage : UserControl
 
     // ---- live speed ----------------------------------------------------------
 
+    /// <summary>How often the notification-area tooltip is rewritten. It is only read on hover.</summary>
+    private static readonly TimeSpan TrayTooltipInterval = TimeSpan.FromSeconds(5);
+    private DateTimeOffset _trayTooltipWritten = DateTimeOffset.MinValue;
+
     private void OnSpeedUpdated(object? sender, SpeedSample sample)
     {
         var unit = SettingsService.ParseSpeedUnit(_preferences.SpeedUnit);
 
-        ViewModel.SetSpeed(sample, unit);
+        // Nothing is bound to these while the window is hidden, so the work of formatting and
+        // raising two property changes a second buys nothing.
+        if (App.PrimaryWindow?.AppWindow.IsVisible == true) ViewModel.SetSpeed(sample, unit);
+
         _meter?.Show(sample);
 
-        // With the window closed to the notification area, this is the only reading on screen.
-        _tray?.SetTooltip(
+        // With the window closed to the notification area, this is the only reading on screen —
+        // but it is only read on hover, and every change is a call into Explorer, so it is
+        // rewritten every few seconds rather than every sample.
+        if (_tray is null) return;
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _trayTooltipWritten < TrayTooltipInterval) return;
+        _trayTooltipWritten = now;
+
+        _tray.SetTooltip(
             $"{AppInfo.DisplayName}\n" +
             $"Up {ByteFormat.HumanizeRate(sample.SentPerSecond, unit)}    " +
             $"Down {ByteFormat.HumanizeRate(sample.ReceivedPerSecond, unit)}");
@@ -542,6 +557,10 @@ public sealed partial class MainPage : UserControl
         _themeWatcher.Dispose();
         HideMeter();
         HideTray();
+
+        // Closes SQLite properly, which checkpoints the write-ahead log and removes the -wal and
+        // -shm files. Without it every start is a recovery from the last unclean exit.
+        _store.Dispose();
     }
 
     // ---- startup and sync ----------------------------------------------------
@@ -567,7 +586,12 @@ public sealed partial class MainPage : UserControl
             }
         }
 
-        await SyncAsync(full: firstRun);
+        // A network that carried nothing the day it was first seen is never productive, so a
+        // routine sync would skip it for ever. A daily sweep gives it another chance.
+        var sweepDue = _preferences.LastFullSweepUtc is not { } last
+                       || DateTimeOffset.UtcNow - last > TimeSpan.FromDays(1);
+
+        await SyncAsync(full: firstRun || sweepDue);
     }
 
     private async Task SyncAsync(bool full)
@@ -586,11 +610,25 @@ public sealed partial class MainPage : UserControl
             var progress = new Progress<SyncProgress>(p =>
                 ViewModel.Status = $"Reading {p.ProfileName} ({p.Index} of {p.Total})…");
 
-            await Task.Run(() => _sync.SyncAsync(full, progress));
+            var result = await Task.Run(() => _sync.SyncAsync(full, progress));
 
-            _appCache.Clear();   // new bytes landed; per-app figures are now stale
+            if (full) _preferences.LastFullSweepUtc = DateTimeOffset.UtcNow;
+
+            // Only when new bytes landed. Clearing unconditionally meant every quiet quarter of
+            // an hour replaced the app list the user was reading with shimmering placeholders
+            // for several seconds, to arrive at the same answer.
+            if (result.BytesAdded > 0) _appCache.Clear();
+
             ViewModel.Refresh();
-            ViewModel.Status = "";
+
+            // A network that could not be read is said out loud. Clearing the status line as
+            // though all were well is how a permanent hole in the history goes unnoticed.
+            ViewModel.Status = result.NetworksFailed switch
+            {
+                0 => "",
+                1 => "One network could not be read; it will be retried",
+                _ => $"{result.NetworksFailed} networks could not be read; they will be retried"
+            };
         }
         catch (Exception ex)
         {

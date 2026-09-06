@@ -55,6 +55,7 @@ public sealed partial class SpeedWindow : Window
     private MeterSizeOption _size = MeterSizeOption.Medium;
     private SpeedUnit _unit = SpeedUnit.Kilobits;
     private SpeedSample _latest = SpeedSample.Idle;
+    private string? _tooltipAdapter;
 
     /// <summary>The card's size in physical pixels.</summary>
     private SizeInt32 _card;
@@ -93,6 +94,7 @@ public sealed partial class SpeedWindow : Window
 
         // A meter is not a place you alt-tab to.
         AppWindow.IsShownInSwitchers = false;
+        MakeToolWindow();
 
         ApplyMetrics();
 
@@ -169,7 +171,12 @@ public sealed partial class SpeedWindow : Window
         UpValue.Text = ByteFormat.HumanizeRate(sample.SentPerSecond, _unit);
         DownValue.Text = ByteFormat.HumanizeRate(sample.ReceivedPerSecond, _unit);
 
+        // The tooltip only changes when the adapter does, so it is not rebuilt and reattached
+        // every second for a string that is almost always the one already there.
         var adapter = string.IsNullOrWhiteSpace(sample.InterfaceName) ? "this PC" : sample.InterfaceName;
+        if (adapter == _tooltipAdapter) return;
+
+        _tooltipAdapter = adapter;
         ToolTipService.SetToolTip(Root, $"Live speed on {adapter}. Drag to move, double-click to open Datameter.");
     }
 
@@ -446,6 +453,36 @@ public sealed partial class SpeedWindow : Window
     {
         public int X, Y;
     }
+
+    private const int GwlExStyle = -20;
+    private const int WsExToolWindow = 0x00000080;
+    private const int WsExAppWindow = 0x00040000;
+
+    /// <summary>
+    /// Takes the meter out of the taskbar.
+    ///
+    /// IsShownInSwitchers keeps it out of Alt-Tab, but the taskbar is a separate decision: a
+    /// top-level window still earns a button there, so closing the main window to the
+    /// notification area left a Datameter button on the taskbar showing the meter — the app
+    /// looked open when the point of the meter is that it is not. A tool window has no button.
+    /// </summary>
+    private void MakeToolWindow()
+    {
+        try
+        {
+            var style = GetWindowLong(_hwnd, GwlExStyle);
+            SetWindowLong(_hwnd, GwlExStyle, (style | WsExToolWindow) & ~WsExAppWindow);
+        }
+        catch
+        {
+        }
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", ExactSpelling = true)]
+    private static extern int GetWindowLong(IntPtr hwnd, int index);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW", ExactSpelling = true)]
+    private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
 
     [DllImport("gdi32.dll", ExactSpelling = true)]
     private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);

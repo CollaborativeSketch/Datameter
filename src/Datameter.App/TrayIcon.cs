@@ -68,6 +68,12 @@ public sealed class TrayIcon : IDisposable
     private bool _added;
     private bool _disposed;
 
+    /// <summary>
+    /// The message Explorer broadcasts after a restart, telling every app to put its icon back.
+    /// Registered rather than hard-coded, because the value is assigned at run time.
+    /// </summary>
+    private readonly uint _taskbarCreated;
+
     public TrayIcon(string tooltip)
     {
         _wndProc = HandleMessage;
@@ -91,6 +97,11 @@ public sealed class TrayIcon : IDisposable
         _iconSource = LoadAppIcon();
         _icon = _iconSource?.Handle ?? IntPtr.Zero;
         _tooltip = Trim(tooltip);
+
+        // Explorer can restart. When it does every notification icon is gone and has to be
+        // added again; without this the app would sit hidden behind an icon that no longer
+        // exists, reachable only through Task Manager.
+        _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
 
         var data = Describe(NifMessage | NifIcon | NifTip);
         _added = Shell_NotifyIcon(NimAdd, ref data);
@@ -137,6 +148,13 @@ public sealed class TrayIcon : IDisposable
 
     private IntPtr HandleMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam)
     {
+        if (_taskbarCreated != 0 && (uint)message == _taskbarCreated && !_disposed)
+        {
+            var again = Describe(NifMessage | NifIcon | NifTip);
+            _added = Shell_NotifyIcon(NimAdd, ref again);
+            return IntPtr.Zero;
+        }
+
         switch (message)
         {
             case WmTrayCallback:
@@ -335,4 +353,7 @@ public sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll", EntryPoint = "PostMessageW", CharSet = CharSet.Unicode)]
     private static extern bool PostMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", EntryPoint = "RegisterWindowMessageW", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string message);
 }

@@ -171,11 +171,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         yield return new("Last month", ChartGrain.Day, now =>
             (FirstOfMonth(now).AddMonths(-1), FirstOfMonth(now)));
 
+        // Calendar-aligned, like Last 7 days above. Rolling from "now" opened and closed on
+        // partial days, drew 31 bars for 30 days, and started Last 12 months mid-month — two
+        // meanings of "last N" on one picker.
         yield return new("Last 30 days", ChartGrain.Day, now =>
-            (now.AddDays(-30), now));
+            (now.Date.AddDays(-29), now));
 
         yield return new("Last 12 months", ChartGrain.Month, now =>
-            (now.AddDays(-365), now));
+            (FirstOfMonth(now).AddMonths(-11), now));
 
         // The end date is inclusive: picking 5 Sept means through the end of 5 Sept.
         yield return new(CustomRangeLabel, ChartGrain.Day, _ =>
@@ -472,8 +475,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Chart.Add(new BarVm(b.Value / ceiling, $"{b.Label} · {ByteFormat.Humanize((long)b.Value)}"));
 
         ChartTicks = BuildTicks(ceiling);
-        AxisStart = buckets[0].Label;
-        AxisEnd = buckets[^1].Label;
+
+        // An hourly range that crosses midnight ends up with both ends reading the same clock
+        // time — "Last 24 hours" showed 09:00 at each end — so the day is named when it differs.
+        if (period.Grain == ChartGrain.Hour && series.Count > 0)
+        {
+            var first = series[0].HourUtc.ToLocalTime();
+            var last = series[^1].HourUtc.ToLocalTime();
+
+            AxisStart = DescribeHour(first, last.Date != first.Date);
+            AxisEnd = DescribeHour(last, last.Date != first.Date);
+        }
+        else
+        {
+            AxisStart = buckets[0].Label;
+            AxisEnd = buckets[^1].Label;
+        }
+    }
+
+    /// <summary>An hour label, with the day named when the range spans more than one.</summary>
+    private static string DescribeHour(DateTimeOffset at, bool nameTheDay)
+    {
+        if (!nameTheDay) return at.ToString("HH:00");
+
+        var today = DateTimeOffset.Now.Date;
+        var day = at.Date == today ? "Today"
+            : at.Date == today.AddDays(-1) ? "Yesterday"
+            : at.ToString("d MMM");
+
+        return $"{day} {at:HH:00}";
     }
 
     /// <summary>How many parts the ruler divides the plot into.</summary>

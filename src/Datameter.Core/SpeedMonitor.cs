@@ -41,6 +41,18 @@ public sealed class SpeedMonitor
     private long _preferredResolvedAt;
 
     /// <summary>
+    /// The adapter we are reading, held between samples.
+    ///
+    /// GetAllNetworkInterfaces builds a managed object for every adapter on the machine, virtual
+    /// ones included, and measured around a hundred times the cost of reading the counters we
+    /// actually want. Holding the one adapter and calling GetIPStatistics on it re-reads the
+    /// counters live, so nothing is stale except the identity — which is rechecked every few
+    /// seconds anyway, and repaired immediately if a read fails.
+    /// </summary>
+    private NetworkInterface? _held;
+    private string? _heldId;
+
+    /// <summary>
     /// Rate since the previous call. The first call establishes the baseline and reports
     /// nothing, because a rate needs two readings.
     /// </summary>
@@ -80,6 +92,8 @@ public sealed class SpeedMonitor
     {
         _lastTimestamp = 0;
         _lastAdapterId = null;
+        _held = null;
+        _heldId = null;
     }
 
     private readonly record struct Reading(long Sent, long Received, string? Name, string? AdapterId);
@@ -97,16 +111,20 @@ public sealed class SpeedMonitor
 
         if (preferred is not null)
         {
-            foreach (var nic in SafeInterfaces())
+            // Only walk every adapter when the one being held is not the one wanted.
+            if (_held is null || _heldId is null || !IdMatches(_heldId, preferred))
             {
-                if (!IdMatches(nic.Id, preferred)) continue;
-                if (!TryReadCounters(nic, out var sent, out var received)) break;
-
-                return new Reading(sent, received, nic.Name, nic.Id);
+                _held = SafeInterfaces().FirstOrDefault(nic => IdMatches(nic.Id, preferred));
+                _heldId = _held?.Id;
             }
 
-            // The preferred adapter can disappear between resolving it and reading it. Forget
-            // it and fall back rather than reporting a flat zero.
+            if (_held is not null && TryReadCounters(_held, out var sent, out var received))
+                return new Reading(sent, received, _held.Name, _heldId);
+
+            // The adapter disappeared between resolving it and reading it. Drop everything held
+            // and fall back, rather than reporting a flat zero.
+            _held = null;
+            _heldId = null;
             _preferredId = null;
             _preferredResolvedAt = 0;
         }
