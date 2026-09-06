@@ -16,8 +16,28 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Image Grid.Column="0" Source="ms-appx:///Assets/logo.png"
-                   Width="16" Height="16" VerticalAlignment="Center" />
+            <!--
+                The mark, drawn rather than loaded. A 256 px tile squeezed to 16 px is a smudge,
+                and a 16 px bitmap is the wrong size on every display but one. Vector shapes are
+                sharp at any scale, and their brushes follow the theme, so the needle is dark on
+                light chrome and light on dark. Same geometry as generate-icon.ps1 at its 16 px
+                setting: the bare glyph in its 200-unit box, slots 9 wide, needle 16.
+            -->
+            <Viewbox Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center">
+                <Canvas Width="200" Height="200">
+                    <Path Data="M15.36,155.5 A89,89 0 0 1 81.65,40.91 L86.35,70.6 A59,59 0 0 0 43.89,146.23 Z"
+                          Fill="{ThemeResource GaugeCyanBrush}" />
+                    <Path Data="M90.54,39.5 A89,89 0 0 1 179.37,87.74 L151.91,99.96 A59,59 0 0 0 95.24,69.19 Z"
+                          Fill="{ThemeResource GaugeGreenBrush}" />
+                    <Path Data="M183.03,95.96 A89,89 0 0 1 184.64,155.5 L156.11,146.23 A59,59 0 0 0 155.57,108.18 Z"
+                          Fill="{ThemeResource GaugeAmberBrush}" />
+                    <Line X1="100" Y1="128" X2="135.31" Y2="62.97" StrokeThickness="16"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Stroke="{ThemeResource GaugeInkBrush}" />
+                    <Ellipse Canvas.Left="85" Canvas.Top="113" Width="30" Height="30"
+                             Fill="{ThemeResource GaugeInkBrush}" />
+                </Canvas>
+            </Viewbox>
             <TextBlock Grid.Column="1" x:Name="AppTitleText" Text="Datameter"
                        Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
