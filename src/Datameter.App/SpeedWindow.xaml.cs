@@ -72,7 +72,10 @@ public sealed partial class SpeedWindow : Window
     private bool _placed;
 
     private bool _dragging;
-    private Point _grab;
+
+    /// <summary>Where in the card the pointer took hold, in physical pixels.</summary>
+    private PointInt32 _grabOffset;
+
     private bool _closingProgrammatically;
     private bool _closed;
 
@@ -346,24 +349,27 @@ public sealed partial class SpeedWindow : Window
     {
         var point = e.GetCurrentPoint(Root);
         if (!point.Properties.IsLeftButtonPressed) return;
+        if (!GetCursorPos(out var cursor)) return;
 
-        _grab = point.Position;
+        var at = AppWindow.Position;
+        _grabOffset = new PointInt32(cursor.X - at.X, cursor.Y - at.Y);
         _dragging = Root.CapturePointer(e.Pointer);
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!_dragging) return;
+        if (!GetCursorPos(out var cursor)) return;
 
-        var position = e.GetCurrentPoint(Root).Position;
-        var scale = Root.XamlRoot?.RasterizationScale ?? 1;
-
-        var dx = (int)Math.Round((position.X - _grab.X) * scale);
-        var dy = (int)Math.Round((position.Y - _grab.Y) * scale);
-        if (dx == 0 && dy == 0) return;
+        // The cursor's own screen position, not a delta measured inside the window. A delta
+        // has to assume the window has already finished moving by the time the next pointer
+        // event is measured against it, and it has not: the events arrive faster than the
+        // window follows, so the same movement is counted twice, then corrected, then counted
+        // twice again — which is the card skittering about instead of tracking the cursor.
+        var target = new PointInt32(cursor.X - _grabOffset.X, cursor.Y - _grabOffset.Y);
 
         var at = AppWindow.Position;
-        AppWindow.Move(new PointInt32(at.X + dx, at.Y + dy));
+        if (target.X != at.X || target.Y != at.Y) AppWindow.Move(target);
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -504,4 +510,7 @@ public sealed partial class SpeedWindow : Window
 
     [DllImport("user32.dll", ExactSpelling = true)]
     private static extern bool ClientToScreen(IntPtr hwnd, ref NativePoint point);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern bool GetCursorPos(out NativePoint point);
 }
