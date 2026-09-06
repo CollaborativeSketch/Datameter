@@ -62,6 +62,20 @@ if (args.Contains("--speed"))
     return;
 }
 
+// --integrity reports rows left behind by a delete that happened without foreign keys enforced.
+if (args.Contains("--integrity"))
+{
+    var (networkRows, orphans, ids) = store.DescribeIntegrity();
+    Console.WriteLine($"Network rows      : {networkRows}");
+    Console.WriteLine($"Orphaned SyncState: {orphans}{(ids.Length > 0 ? "  ids " + ids : "")}");
+    Console.WriteLine($"foreign_keys      : {store.ForeignKeysEnforced()}");
+    Console.WriteLine($"integrity_check   : {store.IntegrityCheck()}");
+    Console.WriteLine();
+    foreach (var (id, name) in store.DescribeRawNetworks())
+        Console.WriteLine($"  {id,4}  {name}");
+    return;
+}
+
 // --networks prints the stored network rows and stops. Two rows sharing a profile name
 // means the same network is being counted twice.
 if (args.Contains("--networks"))
@@ -128,7 +142,10 @@ foreach (var (label, span) in new (string, TimeSpan)[]
     ("Last 365 days", TimeSpan.FromDays(365)),
 })
 {
-    var summary = store.GetSummary(UsageProvider.FloorToHour(now - span), now.AddHours(1));
+    // "now", like the app. The extra hour used to be here to work around the store flooring
+    // its upper bound and so dropping the hour in progress; the store rounds up now, and this
+    // would reach into an hour that has not happened.
+    var summary = store.GetSummary(UsageProvider.FloorToHour(now - span), now);
     var active = summary.ActiveNetworks;
 
     Console.WriteLine($"=== {label} ===");

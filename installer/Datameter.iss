@@ -8,7 +8,7 @@
 ;   iscc /DArch=x64 /DPublishDir="<full path to that publish folder>" installer\Datameter.iss
 
 #define AppName        "Datameter"
-#define AppVersion     "1.3.0"
+#define AppVersion     "1.4.0"
 #define AppPublisher   "Alexander Akinbiyi"
 #define AppUrl         "https://github.com/CollaborativeSketch/Datameter"
 #define AppExeName     "Datameter.exe"
@@ -86,7 +86,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
-Name: "startup";     Description: "Start {#AppName} when I sign in"; GroupDescription: "Startup:"; Flags: unchecked
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -94,7 +93,12 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 [Icons]
 Name: "{group}\{#AppName}";        Filename: "{app}\{#AppExeName}"
 Name: "{autodesktop}\{#AppName}";  Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\{#AppName}";  Filename: "{app}\{#AppExeName}"; Tasks: startup
+
+[Registry]
+; Datameter writes this itself when launch-at-startup is on. Without uninsdeletevalue, uninstalling
+; leaves Windows trying to launch a file that is no longer there at every sign-in, and a dead
+; Datameter row in Task Manager's Startup tab.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "Datameter"; ValueType: none; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Open {#AppName}"; Flags: nowait postinstall skipifsilent
@@ -103,3 +107,56 @@ Filename: "{app}\{#AppExeName}"; Description: "Open {#AppName}"; Flags: nowait p
 ; The usage database and settings live outside {app}; leave them, so reinstalling keeps the
 ; history Datameter has accumulated beyond what Windows itself retains.
 Type: dirifempty; Name: "{app}"
+
+[Code]
+const
+  EVENT_MODIFY_STATE = $0002;
+  QuitEventName = 'Local\Datameter.Quit.Datameter';
+
+function OpenEvent(dwDesiredAccess: LongWord; bInheritHandle: Boolean; lpName: String): THandle;
+  external 'OpenEventW@kernel32.dll stdcall';
+function SetEvent(hEvent: THandle): Boolean;
+  external 'SetEvent@kernel32.dll stdcall';
+function CloseHandle(hObject: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+// Datameter keeps running with its window closed, and launch-at-startup is on by default, so
+// the normal state of a machine at upgrade time is a running copy holding its own executable.
+// Restart Manager cannot ask a hidden WinUI window to leave, so the app listens on a named
+// event instead and quits when it is signalled.
+//
+// The same event doubles as the liveness probe: it exists only while the app holds it, so once
+// OpenEvent fails the process has gone and the files can be replaced.
+procedure AskDatameterToQuit;
+var
+  Handle: THandle;
+  Waited: Integer;
+begin
+  Handle := OpenEvent(EVENT_MODIFY_STATE, False, QuitEventName);
+  if Handle = 0 then
+    Exit;
+
+  SetEvent(Handle);
+  CloseHandle(Handle);
+
+  for Waited := 1 to 20 do
+  begin
+    Sleep(250);
+    Handle := OpenEvent(EVENT_MODIFY_STATE, False, QuitEventName);
+    if Handle = 0 then
+      Exit;
+    CloseHandle(Handle);
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  AskDatameterToQuit;
+  Result := True;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  AskDatameterToQuit;
+  Result := True;
+end;

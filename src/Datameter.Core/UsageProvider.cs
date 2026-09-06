@@ -8,8 +8,11 @@ public sealed class ProfileHandle
     public required ConnectionProfile Profile { get; init; }
     public required string ProfileName { get; init; }
     public string? AdapterId { get; init; }
-    public NetworkKind Kind { get; init; }
-    public bool IsMetered { get; init; }
+    /// <summary>Null when the profile is not available, so nothing is known rather than "Other".</summary>
+    public NetworkKind? Kind { get; init; }
+
+    /// <summary>Null when the profile is not available, so nothing is known rather than "no".</summary>
+    public bool? IsMetered { get; init; }
 }
 
 /// <summary>
@@ -52,7 +55,13 @@ public sealed class UsageProvider
     /// only true if the start is aligned to an exact hour. We align it here rather than trusting
     /// the caller.
     /// </summary>
-    public async Task<IReadOnlyList<UsageBucket>> GetHourlyAsync(
+    /// <returns>
+    /// The buckets, or <c>null</c> if the read failed. Null and empty mean different things: an
+    /// empty list is "this network carried nothing", null is "we do not know". Collapsing the
+    /// two is how a swallowed exception used to seal a permanent hole in the history, because
+    /// the caller advanced its cursor past hours it had never actually read.
+    /// </returns>
+    public async Task<IReadOnlyList<UsageBucket>?> GetHourlyAsync(
         ProfileHandle handle,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
@@ -62,6 +71,8 @@ public sealed class UsageProvider
         var end = toUtc.ToUniversalTime();
 
         if (end <= start) return Array.Empty<UsageBucket>();
+
+        // Nothing was asked of Windows, so nothing can have failed.
 
         // Asking beyond the ceiling throws E_INVALIDARG for PerHour, and — worse — silently
         // returns zero buckets for Total. Clamp instead of catching.
@@ -82,9 +93,10 @@ public sealed class UsageProvider
         }
         catch (Exception)
         {
-            // A profile can vanish between enumeration and query, or refuse the range.
-            // One bad network must never take down the whole sync.
-            return Array.Empty<UsageBucket>();
+            // A profile can vanish between enumeration and query, or refuse the range. One bad
+            // network must never take down the whole sync — but it must not be mistaken for a
+            // quiet one either, so the caller is told the read failed rather than handed zero.
+            return null;
         }
 
         var buckets = new List<UsageBucket>(raw.Count);
@@ -98,6 +110,24 @@ public sealed class UsageProvider
         return buckets;
     }
 
+    /// <summary>
+    /// The profile Windows is currently using for the internet, if any.
+    ///
+    /// A network joined today has no stored hours, so it is invisible to any filter based on
+    /// what has already been recorded. This is the one profile that is certainly worth reading.
+    /// </summary>
+    public static string? ConnectedProfileName()
+    {
+        try
+        {
+            return NetworkInformation.GetInternetConnectionProfile()?.ProfileName;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static DateTimeOffset FloorToHour(DateTimeOffset t) =>
         new(t.Year, t.Month, t.Day, t.Hour, 0, 0, TimeSpan.Zero);
 
@@ -107,7 +137,8 @@ public sealed class UsageProvider
         catch { return null; }
     }
 
-    private static NetworkKind ClassifyKind(ConnectionProfile profile)
+    /// <summary>Null rather than Other when the profile cannot be asked.</summary>
+    private static NetworkKind? ClassifyKind(ConnectionProfile profile)
     {
         try
         {
@@ -121,25 +152,33 @@ public sealed class UsageProvider
                 6 => NetworkKind.Ethernet,
                 71 => NetworkKind.WiFi,
                 243 or 244 => NetworkKind.Cellular,
+                null => null,
                 _ => NetworkKind.Other
             };
         }
         catch
         {
-            return NetworkKind.Other;
+            // NetworkAdapter throws for any profile that is not currently available, which is
+            // most of them most of the time. That is not evidence of anything.
+            return null;
         }
     }
 
-    private static bool TryIsMetered(ConnectionProfile profile)
+    /// <summary>Null rather than false when the cost cannot be asked.</summary>
+    private static bool? TryIsMetered(ConnectionProfile profile)
     {
         try
         {
             var cost = profile.GetConnectionCost();
+
+            // Unknown is a real answer from Windows, and it is not "no".
+            if (cost.NetworkCostType == NetworkCostType.Unknown) return null;
+
             return cost.NetworkCostType is NetworkCostType.Fixed or NetworkCostType.Variable;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 }

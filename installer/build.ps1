@@ -1,7 +1,7 @@
 # Publishes Datameter for every supported architecture and builds one installer each.
 #
 # Run:  powershell -File installer\build.ps1
-# Output: dist\DatameterSetup-<version>-<arch>.exe
+# Output: dist\DatameterSetup-<arch>.exe   (versionless, so the download URLs never change)
 
 $ErrorActionPreference = 'Stop'
 
@@ -62,16 +62,16 @@ foreach ($t in $targets) {
 # bought, releasing signed builds is setting one variable rather than reworking the release.
 #
 #   $env:DATAMETER_SIGN_THUMBPRINT = "<sha1 thumbprint of a cert in CurrentUser\My>"
-#   powershell -File installeruild.ps1
+#   powershell -File installer\build.ps1
 #
 # Reputation is earned per-certificate, so the first signed releases may still warn.
 $thumbprint = $env:DATAMETER_SIGN_THUMBPRINT
 
 if ($thumbprint) {
     $signtool = @(
-        "${env:ProgramFiles(x86)}\Windows Kitsind\signtool.exe",
-        "${env:ProgramFiles(x86)}\Windows Kitsin\signtool.exe"
-    ) + @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kitsin\*d\signtool.exe" -ErrorAction SilentlyContinue |
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin\x64\signtool.exe",
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin\x86\signtool.exe"
+    ) + @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
           Sort-Object FullName -Descending | ForEach-Object { $_.FullName }) |
         Where-Object { Test-Path $_ } | Select-Object -First 1
 
