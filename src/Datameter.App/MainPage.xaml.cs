@@ -130,16 +130,19 @@ public sealed partial class MainPage : UserControl
         _resizeSettle.Tick += (_, _) =>
         {
             _resizeSettle.Stop();
-            _laidOutFor = new Windows.Foundation.Size(PageRoot.ActualWidth, PageRoot.ActualHeight);
-            FitHeadline();
-            RebuildContributionBar();
-            RebuildNetworkChips();
-            RebuildChart();
+            RebuildForSize();
         };
 
         PageRoot.SizeChanged += (_, e) =>
         {
             if (e.NewSize == _laidOutFor) return;
+
+            // A resize that arrives on its own — maximise, restore, a snap to half the screen —
+            // is honoured at once, so the page is right on the very next frame rather than a
+            // moment later. A drag is a burst of these, and once one is in flight the rest of
+            // the burst is collapsed into a single rebuild when it stops.
+            if (!_resizeSettle.IsEnabled) RebuildForSize();
+
             _resizeSettle.Stop();
             _resizeSettle.Start();
         };
@@ -1106,6 +1109,16 @@ public sealed partial class MainPage : UserControl
     /// The live speed is the part to give up. It is the only thing on the row that is also on
     /// the floating meter, so nothing is actually lost by standing it down.
     /// </summary>
+    /// <summary>Redraws everything on the page whose geometry comes from the width it is given.</summary>
+    private void RebuildForSize()
+    {
+        _laidOutFor = new Windows.Foundation.Size(PageRoot.ActualWidth, PageRoot.ActualHeight);
+        FitHeadline();
+        RebuildContributionBar();
+        RebuildNetworkChips();
+        RebuildChart();
+    }
+
     private void FitHeadline()
     {
         const double SpeedNeeds = 760;

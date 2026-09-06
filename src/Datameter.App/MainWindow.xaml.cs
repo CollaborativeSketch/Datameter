@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
 
         SizeToDisplay();
+        SetWindowIcon();
 
         if (MicaController.IsSupported())
             SystemBackdrop = new MicaBackdrop();
@@ -97,6 +98,47 @@ public sealed partial class MainWindow : Window
 
         return Math.Max(minimum, Math.Min(preferred, available - (EdgeMargin * 2)));
     }
+
+    /// <summary>
+    /// Gives the window the icon compiled into the executable.
+    ///
+    /// A WinUI 3 window is not given one automatically, and a window with no icon is drawn as
+    /// a blank tile in the taskbar, in Alt+Tab and above the taskbar's thumbnail preview — the
+    /// mark shown in the title bar is the page's own drawing and does not reach any of those.
+    ///
+    /// Both sizes are taken, rather than one and left to Windows: the icon carries an entry
+    /// drawn for 16 pixels, and asking for it by name is the whole reason it is in there.
+    /// </summary>
+    private void SetWindowIcon()
+    {
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(executable)) return;
+
+        try
+        {
+            if (ExtractIconEx(executable, 0, out var large, out var small, 1) == 0) return;
+
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+
+            // The handles stay alive for as long as the window does, which is the process.
+            if (large != IntPtr.Zero) SendMessage(hwnd, WmSetIcon, IconBig, large);
+            if (small != IntPtr.Zero) SendMessage(hwnd, WmSetIcon, IconSmall, small);
+        }
+        catch
+        {
+            // An icon is worth having, not worth failing to open the window over.
+        }
+    }
+
+    private const uint WmSetIcon = 0x0080;
+    private static readonly IntPtr IconSmall = IntPtr.Zero;
+    private static readonly IntPtr IconBig = new(1);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint ExtractIconEx(string file, int index, out IntPtr large, out IntPtr small, uint count);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", ExactSpelling = true)]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
