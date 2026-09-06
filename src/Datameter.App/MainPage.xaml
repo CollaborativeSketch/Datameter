@@ -106,7 +106,8 @@
                             carry a minimum width so the row does not reshuffle every second as
                             the numbers change length.
                         -->
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel x:Name="LiveSpeedBlock" Orientation="Horizontal" Spacing="6"
+                                    VerticalAlignment="Center">
                             <TextBlock Text="Now" FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                             <TextBlock x:Name="SpeedUpArrow" Text="&#x2191;" FontSize="12"
