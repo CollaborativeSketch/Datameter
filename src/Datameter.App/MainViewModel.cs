@@ -171,6 +171,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         yield return new("Last week", ChartGrain.Day, now =>
             (StartOfWeek(now).AddDays(-7), StartOfWeek(now)));
 
+        yield return new("This week", ChartGrain.Day, now =>
+            (StartOfWeek(now), now));
+
         yield return new("This month", ChartGrain.Day, now =>
             (FirstOfMonth(now), now));
 
@@ -189,6 +192,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // The calendar year just gone, as against the rolling twelve months above it.
         yield return new("Last year", ChartGrain.Month, now =>
             (FirstOfYear(now).AddYears(-1), FirstOfYear(now)));
+
+        yield return new("This year", ChartGrain.Month, now =>
+            (FirstOfYear(now), now));
 
         // The end date is inclusive: picking 5 Sept means through the end of 5 Sept.
         yield return new(CustomRangeLabel, ChartGrain.Day, _ =>
