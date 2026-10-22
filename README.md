@@ -41,14 +41,15 @@ without both a different UI framework and a different source of usage data.
 
 ## Features
 
-- Totals for the last 24 hours, 7 days or 30 days, for today, yesterday, this month or last month,
-  for the last 12 months, or for a date range you choose. Calendar periods resolve against local
-  midnight rather than UTC.
+- Totals for the last 24 hours, 7 days or 30 days, for today, yesterday, this week, this month or
+  last month, this year or the last 12 months, or for a date range you choose. Calendar periods
+  resolve against local midnight rather than UTC.
 - A proportional bar showing each network's share, with a tile per network beneath it.
 - Selecting a network narrows every figure to it. Selecting several combines them.
 - A per-application breakdown, equivalent to the one in Settings but summed across all networks
   instead of a single adapter.
-- A live speed readout, and a small floating meter that stays above other windows. It comes in
+- A live speed readout and daily total in the notification-area tooltip, plus a refresh button for
+  usage history. A small floating meter stays above other windows. It comes in
   three sizes, drags anywhere on screen, and can be hidden from its own right-click menu or
   turned off in settings. The notification area can put it back in its default corner if it ends
   up somewhere unhelpful.
