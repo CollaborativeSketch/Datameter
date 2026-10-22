@@ -316,9 +316,11 @@ public sealed partial class MainPage : UserControl
 
     // ---- live speed ----------------------------------------------------------
 
-    /// <summary>How often the notification-area tooltip is rewritten. It is only read on hover.</summary>
-    private static readonly TimeSpan TrayTooltipInterval = TimeSpan.FromSeconds(5);
-    private DateTimeOffset _trayTooltipWritten = DateTimeOffset.MinValue;
+    /// <summary>Stored history for today, refreshed periodically and after a completed sync.</summary>
+    private static readonly TimeSpan TrayUsageRefreshInterval = TimeSpan.FromMinutes(1);
+    private DateOnly? _trayUsageDay;
+    private DateTimeOffset _trayUsageReadAt = DateTimeOffset.MinValue;
+    private long _trayTodayBytes;
 
     private void OnSpeedUpdated(object? sender, SpeedSample sample)
     {
@@ -330,19 +332,34 @@ public sealed partial class MainPage : UserControl
 
         _meter?.Show(sample);
 
-        // With the window closed to the notification area, this is the only reading on screen —
-        // but it is only read on hover, and every change is a call into Explorer, so it is
-        // rewritten every few seconds rather than every sample.
+        // Keep the notification-area hover text current with the same one-second sample shown
+        // in the window and floating meter. The tooltip is short enough for the Shell limit.
         if (_tray is null) return;
 
-        var now = DateTimeOffset.UtcNow;
-        if (now - _trayTooltipWritten < TrayTooltipInterval) return;
-        _trayTooltipWritten = now;
+        RefreshTrayDailyUsage();
+        _tray.SetTooltip(BuildTrayTooltip(sample, unit));
+    }
 
-        _tray.SetTooltip(
-            $"{AppInfo.DisplayName}\n" +
-            $"Up {ByteFormat.HumanizeRate(sample.SentPerSecond, unit)}    " +
-            $"Down {ByteFormat.HumanizeRate(sample.ReceivedPerSecond, unit)}");
+    private string BuildTrayTooltip(SpeedSample sample, SpeedUnit unit) =>
+        $"{AppInfo.DisplayName}\n" +
+        $"Today {ByteFormat.Humanize(_trayTodayBytes)}\n" +
+        $"Up {ByteFormat.HumanizeRate(sample.SentPerSecond, unit)}  " +
+        $"Down {ByteFormat.HumanizeRate(sample.ReceivedPerSecond, unit)}";
+
+    private void RefreshTrayDailyUsage(bool force = false)
+    {
+        var now = DateTimeOffset.Now;
+        var localNow = now.ToLocalTime();
+        var today = DateOnly.FromDateTime(localNow.DateTime);
+        if (!force && _trayUsageDay == today && now - _trayUsageReadAt < TrayUsageRefreshInterval)
+            return;
+
+        var midnight = DateTime.SpecifyKind(localNow.Date, DateTimeKind.Unspecified);
+        var localStart = new DateTimeOffset(midnight, TimeZoneInfo.Local.GetUtcOffset(midnight));
+        _trayTodayBytes = _store.GetTotals(localStart.ToUniversalTime(), now.ToUniversalTime())
+            .Sum(network => network.Total);
+        _trayUsageDay = today;
+        _trayUsageReadAt = now;
     }
 
     // ---- floating meter ------------------------------------------------------
@@ -529,7 +546,9 @@ public sealed partial class MainPage : UserControl
     {
         if (_tray is not null) return;
 
-        var tray = new TrayIcon(AppInfo.DisplayName);
+        RefreshTrayDailyUsage(force: true);
+        var unit = SettingsService.ParseSpeedUnit(_preferences.SpeedUnit);
+        var tray = new TrayIcon(BuildTrayTooltip(App.Speed.Latest, unit));
         if (!tray.IsVisible)
         {
             // Explorer can refuse an icon while it is restarting. Better to keep closing the
@@ -630,6 +649,7 @@ public sealed partial class MainPage : UserControl
     {
         if (_syncing) return;
         _syncing = true;
+        RefreshUsageButton.IsEnabled = false;
 
         try
         {
@@ -645,6 +665,8 @@ public sealed partial class MainPage : UserControl
             var result = await Task.Run(() => _sync.SyncAsync(full, progress));
 
             if (full) _preferences.LastFullSweepUtc = DateTimeOffset.UtcNow;
+
+            RefreshTrayDailyUsage(force: true);
 
             // Only when new bytes landed. Clearing unconditionally meant every quiet quarter of
             // an hour replaced the app list the user was reading with shimmering placeholders
@@ -671,8 +693,12 @@ public sealed partial class MainPage : UserControl
         {
             ViewModel.IsBusy = false;
             _syncing = false;
+            RefreshUsageButton.IsEnabled = true;
         }
     }
+
+    private async void OnRefreshUsage(object sender, RoutedEventArgs e) =>
+        await SyncAsync(full: false);
 
     // ---- per-app usage -------------------------------------------------------
 
@@ -1093,7 +1119,8 @@ public sealed partial class MainPage : UserControl
                 Foreground = text,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, y - (RulerLabelHeight / 2), 0, 0)
+                Margin = new Thickness(0,
+                    Math.Clamp(y - (RulerLabelHeight / 2), 0, chartHeight - RulerLabelHeight), 0, 0)
             });
         }
     }

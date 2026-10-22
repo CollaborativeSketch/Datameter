@@ -26,12 +26,18 @@
             <!-- ProgressBar does not stretch on its own; without this it keeps its default width. -->
             <ProgressBar IsIndeterminate="True" Height="2" Margin="0,0,0,8"
                          HorizontalAlignment="Stretch" />
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <ProgressRing IsActive="True" Width="14" Height="14" VerticalAlignment="Center" />
-                <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" FontSize="12"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ProgressRing Grid.Column="0" IsActive="True" Width="14" Height="14"
+                              VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                           FontSize="12" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
                            Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-            </StackPanel>
+            </Grid>
         </StackPanel>
 
         <!--
@@ -40,13 +46,17 @@
             navigation stack to get lost in.
         -->
         <Grid Grid.Row="1">
-        <ScrollViewer x:Name="MainView" Padding="30,10,30,30" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="MainView" Padding="30,10,30,30"
+                      HorizontalContentAlignment="Stretch"
+                      HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled"
+                      VerticalScrollBarVisibility="Auto">
             <StackPanel MaxWidth="880" HorizontalAlignment="Stretch">
 
                 <!-- Heading, period picker, settings -->
                 <Grid Margin="0,10,0,10" ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -60,7 +70,14 @@
                               SelectedItem="{x:Bind ViewModel.SelectedPeriod, Mode=TwoWay}"
                               ToolTipService.ToolTip="Time period" />
 
-                    <Button Grid.Column="2" Width="36" Height="34" Padding="0" CornerRadius="6"
+                    <Button Grid.Column="2" x:Name="RefreshUsageButton" Width="36" Height="34"
+                            Padding="0" CornerRadius="6" Click="OnRefreshUsage"
+                            ToolTipService.ToolTip="Refresh usage now"
+                            AutomationProperties.Name="Refresh usage now">
+                        <FontIcon Glyph="&#xE72C;" FontSize="15" />
+                    </Button>
+
+                    <Button Grid.Column="3" Width="36" Height="34" Padding="0" CornerRadius="6"
                             Click="OnOpenSettings" ToolTipService.ToolTip="Settings"
                             AutomationProperties.Name="Settings">
                         <FontIcon Glyph="&#xE713;" FontSize="15" />
@@ -237,7 +254,7 @@
                            FontWeight="SemiBold" Margin="0,0,0,12"
                            Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Border Padding="16,14,16,11" CornerRadius="6"
+                <Border Padding="18" CornerRadius="6"
                         Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
@@ -256,7 +273,7 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0" Height="225" />
+                        <Grid x:Name="ChartRuler" Grid.Row="0" Grid.Column="0" Height="240" />
 
                         <!--
                             The plot clears the ruler by the column spacing on its left, so it
@@ -284,6 +301,8 @@
 
         <!-- Settings. The same controls as the old flyout, given room to breathe. -->
         <ScrollViewer x:Name="SettingsView" Padding="30,10,30,30" Visibility="Collapsed"
+                      HorizontalContentAlignment="Stretch"
+                      HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
 
